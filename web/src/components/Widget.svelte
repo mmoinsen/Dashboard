@@ -12,8 +12,25 @@
     onremove,
     onresize,
     ondetail,
+    onmove,
     dragging = false,
-  }: { widget: WidgetInstance; onedit: () => void; onremove: () => void; onresize: (w: number) => void; ondetail: () => void; dragging?: boolean } = $props();
+  }: {
+    widget: WidgetInstance;
+    onedit: () => void;
+    onremove: () => void;
+    onresize: (w: number) => void;
+    ondetail: () => void;
+    onmove: (dir: 'left' | 'right' | 'up' | 'down') => void;
+    dragging?: boolean;
+  } = $props();
+
+  /** Keyboard alternative to dragging: arrow keys on the move handle. */
+  function moveKey(e: KeyboardEvent) {
+    const dir = ({ ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' } as const)[e.key as 'ArrowLeft'];
+    if (!dir) return;
+    e.preventDefault();
+    onmove(dir);
+  }
 
   /** Width presets on the 12-column grid. */
   const SIZES = [
@@ -85,28 +102,37 @@
   {#if !isClock || app.editing}
     <header>
       {#if app.editing}
-        <span class="grip" title="Ziehen zum Verschieben"><Glyph name="grip" /></span>
+        <button class="grip" title="Ziehen oder mit den Pfeiltasten verschieben" aria-label="{title} verschieben (Pfeiltasten)" onkeydown={moveKey}><Glyph name="grip" /></button>
       {/if}
       {#if icon}<span class="icon-tile"><Icon name={icon} label={title} size={26} /></span>{/if}
       <div class="head-text">
-        <h3>
+        <h2 translate="no">
           {#if svc && !app.editing}
             <a href={svc.publicUrl} target={linkTarget()} rel="noopener">{title}</a>
           {:else}
             {title}
           {/if}
-        </h3>
+        </h2>
         {#if data?.summary}<div class="summary clamp-2" title={data.summary}>{data.summary}</div>{:else if winfo && !widget.builtin}<div class="summary">{winfo.name}</div>{/if}
       </div>
       {#if app.editing}
         <div class="edit-tools">
-          <div class="sizes" role="group" aria-label="Breite">
-            {#each SIZES as sz}
-              <button class:active={(widget.w ?? 3) === sz.w} onclick={() => onresize(sz.w)} aria-label="Breite {sz.label}" title="Breite {sz.label}">{sz.label}</button>
-            {/each}
+          <label class="size">
+            <span class="sr-only">Breite von {title}</span>
+            <select value={widget.w ?? 3} onchange={(e) => onresize(Number(e.currentTarget.value))} title="Breite">
+              {#each SIZES as sz}<option value={sz.w}>{sz.label === '1' ? 'Voll' : sz.label}</option>{/each}
+              {#if !SIZES.some((sz) => sz.w === (widget.w ?? 3))}<option value={widget.w}>{widget.w}/12</option>{/if}
+            </select>
+          </label>
+          <div class="moves" role="group" aria-label="{title} verschieben">
+            <button class="icon-btn small" aria-label="Nach links" title="Nach links" onclick={() => onmove('left')}><Glyph name="chevronLeft" size={15} /></button>
+            <button class="icon-btn small up" aria-label="Nach oben" title="Nach oben" onclick={() => onmove('up')}><Glyph name="chevronDown" size={15} /></button>
+            <button class="icon-btn small" aria-label="Nach unten" title="Nach unten" onclick={() => onmove('down')}><Glyph name="chevronDown" size={15} /></button>
+            <button class="icon-btn small" aria-label="Nach rechts" title="Nach rechts" onclick={() => onmove('right')}><Glyph name="chevronRight" size={15} /></button>
           </div>
-          <button class="icon-btn small" aria-label="Widget bearbeiten" onclick={onedit}><Glyph name="settings" size={16} /></button>
-          <button class="icon-btn small" aria-label="Widget entfernen" onclick={onremove}><Glyph name="trash" size={16} /></button>
+          <span class="spacer"></span>
+          <button class="icon-btn small" aria-label="{title} bearbeiten" title="Einstellungen" onclick={onedit}><Glyph name="settings" size={16} /></button>
+          <button class="icon-btn small danger" aria-label="{title} entfernen" title="Entfernen" onclick={onremove}><Glyph name="trash" size={16} /></button>
         </div>
       {:else}
         {#if toneClass}<span class="dot bg-{toneClass}" title={status?.message ?? ''}></span>{/if}
@@ -185,6 +211,11 @@
     border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   }
   .grip {
+    border: 0;
+    background: none;
+    padding: 4px 2px;
+    border-radius: 6px;
+    cursor: grab;
     color: var(--muted);
     display: grid;
   }
@@ -192,7 +223,7 @@
     flex: 1;
     min-width: 0;
   }
-  h3 {
+  h2 {
     font-size: 15.5px;
     font-weight: 600;
     font-family: var(--font-body);
@@ -201,11 +232,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  h3 a {
+  h2 a {
     color: inherit;
     text-decoration: none;
   }
-  h3 a:hover {
+  h2 a:hover {
     text-decoration: underline;
   }
   .summary {
@@ -228,15 +259,27 @@
     padding-top: 10px;
     border-top: 1px dashed var(--border);
   }
-  .edit-tools .sizes {
-    margin-right: auto;
-  }
-  .sizes {
-    display: flex;
-    border: 1px solid var(--border);
+  .size select {
+    height: 32px;
+    padding: 0 8px;
     border-radius: 8px;
-    overflow: hidden;
-    margin-right: 4px;
+    border: 1px solid var(--border);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .moves {
+    display: flex;
+    margin-left: 4px;
+  }
+  .moves .up :global(svg) {
+    transform: rotate(180deg);
+  }
+  .spacer {
+    flex: 1;
+  }
+  .icon-btn.danger:hover {
+    color: var(--bad);
+    background: var(--bad-soft);
   }
   .detail-btn {
     opacity: 0;
@@ -251,19 +294,6 @@
     .detail-btn {
       opacity: 1;
     }
-  }
-  .sizes button {
-    width: 26px;
-    height: 28px;
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-    font-size: 12px;
-  }
-  .sizes button.active {
-    background: var(--accent);
-    color: var(--accent-text);
   }
   .skeleton {
     height: 44px;

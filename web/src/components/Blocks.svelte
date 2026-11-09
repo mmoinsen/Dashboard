@@ -58,7 +58,7 @@
         {#each b.items as it}
           <li class="row" class:has-image={!!it.image}>
             {#if it.image}
-              <img class="thumb" src={it.image} alt="" loading="lazy" />
+              <img class="thumb" src={it.image} alt="" width="38" height="56" loading="lazy" />
             {:else if it.icon}
               <Icon name={it.icon} label={it.title} size={28} />
             {:else if it.status}
@@ -76,7 +76,7 @@
               {#if it.subtitle || it.meta}
                 <div class="row-sub">
                   {#if it.subtitle}<span class="sub clamp-2" title={it.subtitle}>{it.subtitle}</span>{/if}
-                  {#if it.meta}<span class="meta">{it.meta}</span>{/if}
+                  {#if it.meta}<span class="meta" translate="no">{it.meta}</span>{/if}
                 </div>
               {/if}
               {#if it.progress != null}
@@ -102,7 +102,7 @@
       {#each b.items as p}
         <a class="poster" href={p.url} target={linkTarget()} rel="noopener" title={p.title}>
           <span class="poster-img">
-            {#if p.image}<img src={p.image} alt="" loading="lazy" />{:else}<span class="ph">{p.title}</span>{/if}
+            {#if p.image}<img src={p.image} alt="" width="200" height="300" loading="lazy" />{:else}<span class="ph">{p.title}</span>{/if}
           </span>
           <span class="pt clamp-2">{p.title}</span>
           {#if p.subtitle}<span class="ps">{p.subtitle}</span>{/if}
@@ -116,7 +116,7 @@
       {#each b.items as kv}
         <div class="kv-row">
           <dt>{kv.label}</dt>
-          <dd>{kv.value}</dd>
+          <dd translate="no">{kv.value}</dd>
         </div>
       {/each}
     </dl>
@@ -253,6 +253,11 @@
     margin: 0 -12px;
     border-radius: var(--radius-sm);
     border-top-color: transparent;
+  }
+  /* long detail lists (up to 100 torrents/entities): let the browser skip off-screen rows */
+  .list.detail .row {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 64px;
   }
   .list.detail .row:hover {
     background: color-mix(in srgb, var(--surface-2) 70%, transparent);

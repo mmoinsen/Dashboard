@@ -2,6 +2,7 @@
   import { put } from '../../lib/api.ts';
   import { app, toast } from '../../lib/store.svelte.ts';
   import type { SearchEngine } from '../../lib/types.ts';
+  import { warnOnUnload } from '../../lib/unsaved.ts';
   import Glyph from '../Glyph.svelte';
 
   const s = app.settings!;
@@ -12,6 +13,10 @@
   let lat = $state(s.weather?.latitude?.toString() ?? '');
   let lon = $state(s.weather?.longitude?.toString() ?? '');
   let place = $state(s.weather?.name ?? '');
+
+  const snapshot = () => JSON.stringify([title, defaultEngine, suggestions, engines, lat, lon, place]);
+  let savedState = snapshot();
+  $effect(() => warnOnUnload(() => snapshot() !== savedState));
 
   async function save(e: SubmitEvent) {
     e.preventDefault();
@@ -24,6 +29,7 @@
         },
       });
       app.settings = r.settings;
+      savedState = snapshot();
       document.title = r.settings.title;
       toast('Gespeichert', 'ok');
     } catch (err) {
@@ -37,11 +43,11 @@
 <form class="stack" onsubmit={save}>
   <div class="card section">
     <h3>Dashboard</h3>
-    <label class="field"><span>Titel</span><input class="input" bind:value={title} /></label>
+    <label class="field"><span>Titel</span><input class="input" name="title" autocomplete="off" placeholder="z. B. Kompass…" bind:value={title} /></label>
     <div class="form-grid">
-      <label class="field"><span>Standard-Ort für Wetter</span><input class="input" placeholder="Berlin" bind:value={place} /></label>
-      <label class="field"><span>Breitengrad</span><input class="input" inputmode="decimal" placeholder="52.52" bind:value={lat} /></label>
-      <label class="field"><span>Längengrad</span><input class="input" inputmode="decimal" placeholder="13.41" bind:value={lon} /></label>
+      <label class="field"><span>Standard-Ort für Wetter</span><input class="input" name="place" autocomplete="off" placeholder="z. B. Berlin…" bind:value={place} /></label>
+      <label class="field"><span>Breitengrad</span><input class="input" name="latitude" type="number" step="any" min="-90" max="90" inputmode="decimal" autocomplete="off" placeholder="z. B. 52.52…" bind:value={lat} /></label>
+      <label class="field"><span>Längengrad</span><input class="input" name="longitude" type="number" step="any" min="-180" max="180" inputmode="decimal" autocomplete="off" placeholder="z. B. 13.41…" bind:value={lon} /></label>
     </div>
     <small class="muted">Neue Benutzer bekommen damit automatisch ein Wetter-Widget.</small>
   </div>
@@ -61,10 +67,10 @@
       <div class="eh muted"><span>Name</span><span>Präfix</span><span>URL ({'{'}q{'}'} = Suchbegriff)</span><span></span></div>
       {#each engines as e, i (i)}
         <div class="er">
-          <input class="input" aria-label="Name" bind:value={e.name} />
-          <input class="input mono" aria-label="Präfix" bind:value={e.bang} />
-          <input class="input mono" aria-label="URL" bind:value={e.url} />
-          <button type="button" class="icon-btn" aria-label="Entfernen" onclick={() => engines.splice(i, 1)}><Glyph name="trash" size={16} /></button>
+          <input class="input" aria-label="Name der Suchmaschine" name="engine-name-{i}" autocomplete="off" bind:value={e.name} />
+          <input class="input mono" aria-label="Präfix" name="engine-bang-{i}" autocomplete="off" autocapitalize="none" spellcheck="false" bind:value={e.bang} />
+          <input class="input mono" aria-label="Such-URL" type="url" inputmode="url" name="engine-url-{i}" autocomplete="off" spellcheck="false" bind:value={e.url} />
+          <button type="button" class="icon-btn" aria-label="{e.name || 'Suchmaschine'} entfernen" onclick={() => engines.splice(i, 1)}><Glyph name="trash" size={16} /></button>
         </div>
       {/each}
       <div>
@@ -75,7 +81,7 @@
     </div>
   </div>
 
-  <div><button class="btn primary" type="submit">Speichern</button></div>
+  <div><button class="btn primary" type="submit">Einstellungen speichern</button></div>
 </form>
 
 <style>

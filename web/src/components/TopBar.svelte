@@ -7,6 +7,29 @@
   let { currentPage }: { currentPage?: string } = $props();
   let now = $state(new Date());
   let menuOpen = $state(false);
+  let menuButton: HTMLButtonElement;
+  let menuEl: HTMLDivElement | undefined = $state();
+
+  function closeMenu(returnFocus = true) {
+    menuOpen = false;
+    if (returnFocus) menuButton?.focus();
+  }
+
+  // Esc closes the menu, a click anywhere outside closes it too.
+  $effect(() => {
+    if (!menuOpen) return;
+    queueMicrotask(() => menuEl?.querySelector<HTMLElement>('[role=menuitem]')?.focus());
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeMenu();
+    const onDown = (e: PointerEvent) => {
+      if (!menuEl?.contains(e.target as Node) && !menuButton.contains(e.target as Node)) closeMenu(false);
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onDown);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onDown);
+    };
+  });
 
   $effect(() => {
     const t = setInterval(() => (now = new Date()), 15_000);
@@ -33,7 +56,7 @@
 <header class="top">
   <a class="brand" href="#/">
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5" /><path d="M15.5 8.5l-2 5-5 2 2-5z" /></svg>
-    <span>{app.settings?.title ?? 'Kompass'}</span>
+    <span translate="no">{app.settings?.title ?? 'Kompass'}</span>
   </a>
 
   <nav class="pages" aria-label="Seiten">
@@ -47,27 +70,25 @@
 
   <div class="right">
     <span class="date muted">{fmt.format(now)}</span>
-    <button class="icon-btn" aria-label="Suche öffnen (Ctrl K)" onclick={() => ((app.searchSeed = ''), (app.searchOpen = true))}><Glyph name="search" /></button>
+    <button class="icon-btn" aria-label="Suche öffnen (Strg+K)" onclick={() => ((app.searchSeed = ''), (app.searchOpen = true))}><Glyph name="search" /></button>
     <button class="btn" class:primary={app.editing} onclick={() => (app.editing = !app.editing)}>
       <Glyph name={app.editing ? 'check' : 'edit'} size={16} />
       <span class="label">{app.editing ? 'Fertig' : 'Bearbeiten'}</span>
     </button>
     <div class="menu-wrap">
-      <button class="icon-btn" aria-label="Menü" aria-expanded={menuOpen} onclick={() => (menuOpen = !menuOpen)}><Glyph name="user" /></button>
+      <button bind:this={menuButton} class="icon-btn" aria-label="Menü" aria-haspopup="menu" aria-expanded={menuOpen} onclick={() => (menuOpen = !menuOpen)}><Glyph name="user" /></button>
       {#if menuOpen}
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="backdrop" onclick={() => (menuOpen = false)} onkeydown={() => {}}></div>
-        <div class="menu card" role="menu">
+        <div class="menu card" role="menu" bind:this={menuEl}>
           <div class="who">
             <strong>{app.user?.displayName}</strong>
             <span class="muted">@{app.user?.username}{app.user?.isAdmin ? ' · Admin' : ''}</span>
           </div>
-          <a role="menuitem" href="#/settings/appearance" onclick={() => (menuOpen = false)}><Glyph name="palette" size={16} /> Aussehen</a>
-          <a role="menuitem" href="#/settings/account" onclick={() => (menuOpen = false)}><Glyph name="user" size={16} /> Konto</a>
+          <a role="menuitem" href="#/settings/appearance" onclick={() => closeMenu(false)}><Glyph name="palette" size={16} /> Aussehen</a>
+          <a role="menuitem" href="#/settings/account" onclick={() => closeMenu(false)}><Glyph name="user" size={16} /> Konto</a>
           {#if app.user?.isAdmin}
-            <a role="menuitem" href="#/settings/services" onclick={() => (menuOpen = false)}><Glyph name="server" size={16} /> Dienste</a>
-            <a role="menuitem" href="#/settings/users" onclick={() => (menuOpen = false)}><Glyph name="users" size={16} /> Benutzer</a>
-            <a role="menuitem" href="#/settings/general" onclick={() => (menuOpen = false)}><Glyph name="settings" size={16} /> Allgemein</a>
+            <a role="menuitem" href="#/settings/services" onclick={() => closeMenu(false)}><Glyph name="server" size={16} /> Dienste</a>
+            <a role="menuitem" href="#/settings/users" onclick={() => closeMenu(false)}><Glyph name="users" size={16} /> Benutzer</a>
+            <a role="menuitem" href="#/settings/general" onclick={() => closeMenu(false)}><Glyph name="settings" size={16} /> Allgemein</a>
           {/if}
           <button role="menuitem" onclick={logout}><Glyph name="logout" size={16} /> Abmelden</button>
         </div>
@@ -134,11 +155,6 @@
   }
   .menu-wrap {
     position: relative;
-  }
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 40;
   }
   .menu {
     position: absolute;

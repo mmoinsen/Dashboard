@@ -7,7 +7,8 @@ export function bytes(n: number | undefined | null, digits = 1): string {
     v /= 1024;
     i++;
   }
-  return `${(n < 0 ? -v : v).toFixed(i === 0 ? 0 : digits)} ${units[i]}`;
+  // non-breaking space: "12.4 MB" never wraps between number and unit
+  return `${(n < 0 ? -v : v).toFixed(i === 0 ? 0 : digits)}\u00a0${units[i]}`;
 }
 
 export function speed(bytesPerSec: number | undefined | null): string {
@@ -17,7 +18,7 @@ export function speed(bytesPerSec: number | undefined | null): string {
 
 /** Split a byte rate into value + unit, for stat tiles. */
 export function speedParts(bytesPerSec: number): { value: string; unit: string } {
-  const [value, unit] = bytes(bytesPerSec).split(' ');
+  const [value, unit] = bytes(bytesPerSec).split(/\s/);
   return { value, unit: `${unit}/s` };
 }
 
@@ -27,10 +28,10 @@ export function duration(seconds: number | undefined | null): string {
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  if (d > 0) return `${d} d ${h} h`;
-  if (h > 0) return `${h} h ${m} min`;
-  if (m > 0) return `${m} min`;
-  return `${Math.floor(seconds)} s`;
+  if (d > 0) return `${d}\u00a0d ${h}\u00a0h`;
+  if (h > 0) return `${h}\u00a0h ${m}\u00a0min`;
+  if (m > 0) return `${m}\u00a0min`;
+  return `${Math.floor(seconds)}\u00a0s`;
 }
 
 export function ticksToSeconds(ticks: number | undefined): number {
@@ -44,7 +45,7 @@ export function num(n: number | undefined | null, digits = 0): string {
 
 export function percent(n: number | undefined | null, digits = 1): string {
   if (n == null || !isFinite(n)) return '–';
-  return `${num(n, digits)} %`;
+  return `${num(n, digits)}\u00a0%`;
 }
 
 const weekday = new Intl.DateTimeFormat('de-DE', { weekday: 'short' });

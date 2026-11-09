@@ -4,12 +4,15 @@
   import type { Theme, ThemeTokens } from '../../lib/types.ts';
   import { copyText } from '../../lib/id.ts';
   import { rangeFill } from '../../lib/actions.ts';
+  import { warnOnUnload } from '../../lib/unsaved.ts';
   import Glyph from '../Glyph.svelte';
 
   const custom = $derived(app.user?.settings.customThemes ?? []);
   const activeId = $derived(findTheme(app.user?.settings.theme, custom).id);
 
   let editing: { id?: string; name: string; tokens: ThemeTokens } | null = $state(null);
+  let editStart = '';
+  $effect(() => warnOnUnload(() => !!editing && JSON.stringify(editing) !== editStart));
 
   // Live preview while editing; restore the saved theme when the editor closes.
   $effect(() => {
@@ -18,9 +21,11 @@
 
   function startEdit(base: Theme, asCopy: boolean) {
     editing = { id: asCopy ? undefined : base.id, name: asCopy ? `${base.name} (eigenes)` : base.name, tokens: { ...base.tokens } };
+    editStart = JSON.stringify(editing);
   }
 
   function cancel() {
+    if (editing && JSON.stringify(editing) !== editStart && !confirm('Änderungen am Theme verwerfen?')) return;
     editing = null;
     applyUserTheme();
   }
@@ -128,7 +133,7 @@
         <button class="btn primary" onclick={saveTheme}>Speichern &amp; verwenden</button>
       </div>
     </div>
-    <label class="field"><span>Name</span><input class="input" bind:value={editing.name} /></label>
+    <label class="field"><span>Name</span><input class="input" name="theme-name" autocomplete="off" bind:value={editing.name} /></label>
 
     <div class="colors">
       {#each colorFields as f (f.key)}
@@ -136,7 +141,7 @@
           <input type="color" value={isHex(String(editing.tokens[f.key])) ? editing.tokens[f.key] : '#888888'} oninput={(e) => ((editing!.tokens as any)[f.key] = e.currentTarget.value)} />
           <span class="cl">
             <span class="muted">{f.label}</span>
-            <input class="hex mono" value={editing.tokens[f.key]} onchange={(e) => ((editing!.tokens as any)[f.key] = e.currentTarget.value)} aria-label="{f.label} Farbwert" />
+            <input class="hex mono" name="color-{f.key}" autocomplete="off" spellcheck="false" value={editing.tokens[f.key]} onchange={(e) => ((editing!.tokens as any)[f.key] = e.currentTarget.value)} aria-label="{f.label} Farbwert" />
           </span>
         </label>
       {/each}
@@ -178,7 +183,7 @@
     </div>
     <label class="field">
       <span>Hintergrundbild (URL oder CSS-Verlauf)</span>
-      <input class="input" placeholder="https://… oder linear-gradient(135deg, #1f2b46, #6a5a8e)" bind:value={editing.tokens.wallpaper} />
+      <input class="input" name="wallpaper" autocomplete="off" spellcheck="false" placeholder="z. B. https://bild.jpg oder linear-gradient(135deg, #1f2b46, #6a5a8e)…" bind:value={editing.tokens.wallpaper} />
       <small>Tipp: Mit Hintergrundbild Karten-Deckkraft auf ~15 % und Blur auf ~18 px setzen.</small>
     </label>
   </div>
@@ -295,7 +300,10 @@
     padding: 2px 0;
     font-size: 13px;
     width: 100%;
-    outline: none;
+    outline: none; /* replaced by the underline below */
+  }
+  .hex:focus-visible {
+    border-bottom: 2px solid var(--accent);
   }
 
 </style>

@@ -63,7 +63,8 @@
   const timeFmt = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
   function onMove(e: PointerEvent) {
-    const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
+    if (n < 2) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const x = e.clientX - rect.left - PAD.left;
     hover = Math.min(Math.max(Math.round((x / innerW) * (n - 1)), 0), n - 1);
   }
@@ -77,23 +78,33 @@
   const active = $derived(hover ?? n - 1);
   const tipLeft = $derived(hover == null ? 0 : xAt(hover));
   const last = (pts: number[]) => pts[pts.length - 1] ?? 0;
+  const valueText = $derived(
+    `${times?.[active] ? timeFmt.format(new Date(times[active])) : `Messung ${active + 1}`}: ` +
+      series.map((s) => `${s.label} ${fmt(s.points[active] ?? 0)} ${unit}`).join(', '),
+  );
 </script>
 
 <figure class="chart">
   {#if label}<figcaption>{label}</figcaption>{/if}
-  <div class="plot" bind:clientWidth={width} style="height:{height}px">
+  <!-- Explorable with arrow keys: exposed as a slider over the measurement points. -->
+  <div
+    class="plot"
+    bind:clientWidth={width}
+    style="height:{height}px"
+    role="slider"
+    tabindex={n > 1 ? 0 : -1}
+    aria-label="{label ?? series.map((s) => s.label).join(', ')} – mit Pfeiltasten durch die Messwerte"
+    aria-valuemin={1}
+    aria-valuemax={Math.max(n, 1)}
+    aria-valuenow={active + 1}
+    aria-valuetext={valueText}
+    onpointermove={onMove}
+    onpointerleave={() => (hover = null)}
+    onkeydown={onKey}
+    onblur={() => (hover = null)}
+  >
     {#if width && n > 1}
-      <svg
-        {width}
-        {height}
-        role="img"
-        tabindex="0"
-        aria-label="{label ?? series.map((s) => s.label).join(', ')}: {series.map((s) => `${s.label} aktuell ${fmt(last(s.points))} ${unit}`).join(', ')}. Mit Pfeiltasten Werte ansehen."
-        onpointermove={onMove}
-        onpointerleave={() => (hover = null)}
-        onkeydown={onKey}
-        onblur={() => (hover = null)}
-      >
+      <svg {width} {height} aria-hidden="true">
         <defs>
           {#each series as _, i}
             <linearGradient id="g-{uid}-{i}" x1="0" y1="0" x2="0" y2="1">
@@ -165,11 +176,11 @@
     display: block;
     overflow: visible;
     cursor: crosshair;
-    border-radius: var(--radius-sm);
   }
-  svg:focus-visible {
+  .plot:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 4px;
+    border-radius: var(--radius-sm);
   }
   .grid {
     stroke: var(--border);
@@ -218,6 +229,7 @@
     margin-left: auto;
     padding-left: 12px;
     font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
   }
   .legend {
     display: flex;

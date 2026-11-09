@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { app, saveDashboard } from '../lib/store.svelte.ts';
+  import { app, navigate, saveDashboard, toast } from '../lib/store.svelte.ts';
   import { GRID_COLUMNS, compact, totalHeight, type DashboardPage, type WidgetInstance } from '../lib/types.ts';
   import Glyph from './Glyph.svelte';
   import ServiceBar from './ServiceBar.svelte';
@@ -10,7 +10,21 @@
   let { page }: { page: DashboardPage } = $props();
 
   let editorFor: WidgetInstance | 'new' | null = $state(null);
-  let detailFor: WidgetInstance | null = $state(null);
+
+  // The open detail view lives in the URL (#/p/<page>?detail=<widget>): deep-linkable,
+  // and the browser's back button closes it.
+  const detailId = $derived(new URLSearchParams(app.route.split('?')[1] ?? '').get('detail'));
+  const detailFor = $derived(detailId ? (page.widgets.find((w) => w.id === detailId) ?? null) : null);
+  let openedHere = false;
+  function openDetail(w: WidgetInstance) {
+    openedHere = true;
+    navigate(`/p/${page.id}?detail=${encodeURIComponent(w.id)}`);
+  }
+  function closeDetail() {
+    if (openedHere) history.back();
+    else navigate(`/p/${page.id}`);
+    openedHere = false;
+  }
 
   const greeting = $derived.by(() => {
     const h = new Date().getHours();
@@ -176,9 +190,47 @@
     saveDashboard();
   }
 
+  /** Remove with an undo window instead of deleting immediately. */
   function remove(id: string) {
+    const index = page.widgets.findIndex((w) => w.id === id);
+    if (index < 0) return;
+    const removed = page.widgets[index];
     page.widgets = page.widgets.filter((w) => w.id !== id);
     saveDashboard();
+    toast(`Widget „${removed.title || removed.widget}“ entfernt`, 'default', {
+      label: 'Rückgängig',
+      run: () => {
+        const list = [...page.widgets];
+        list.splice(Math.min(index, list.length), 0, removed);
+        page.widgets = list;
+        saveDashboard();
+      },
+    });
+  }
+
+  /** Click/keyboard alternative to dragging. */
+  function move(id: string, dir: 'left' | 'right' | 'up' | 'down') {
+    const w = page.widgets.find((x) => x.id === id);
+    const me = slots.get(id);
+    if (!w || !me) return;
+    normalizeOrder();
+    if (dir === 'left' || dir === 'right') {
+      w.x = Math.min(Math.max((w.x ?? 0) + (dir === 'left' ? -1 : 1), 0), GRID_COLUMNS - (w.w ?? 3));
+    } else {
+      // swap order with the nearest widget above/below that shares columns
+      const overlap = placed.filter((p) => p.id !== id && p.x < me.x + me.w && me.x < p.x + p.w);
+      const target =
+        dir === 'up'
+          ? overlap.filter((p) => p.top < me.top).sort((a, b) => b.top - a.top)[0]
+          : overlap.filter((p) => p.top > me.top).sort((a, b) => a.top - b.top)[0];
+      if (!target) return;
+      const tw = page.widgets.find((x) => x.id === target.id)!;
+      w.y = (tw.y ?? target.top) + (dir === 'up' ? -0.001 : 0.001);
+    }
+    queueMicrotask(() => {
+      normalizeOrder();
+      saveDashboard();
+    });
   }
 
   function resize(id: string, width: number) {
@@ -192,6 +244,9 @@
 </script>
 
 <div class="dash">
+  {#if page.showSearch === false || app.user?.settings.greeting === false}
+    <h1 class="sr-only">{page.name}</h1>
+  {/if}
   {#if page.showSearch !== false}
     <section class="hero">
       {#if app.user?.settings.greeting !== false}
@@ -204,7 +259,7 @@
       <button class="searchbox" onclick={() => ((app.searchSeed = ''), (app.searchOpen = true))}>
         <Glyph name="search" size={20} />
         <span>Suchen, steuern, starten … Filme, Geräte, Container oder das Web</span>
-        <span class="kbd">Ctrl K</span>
+        <span class="kbd">Ctrl&nbsp;K</span>
       </button>
     </section>
   {/if}
@@ -239,14 +294,17 @@
         onpointerup={endDrag}
         onpointercancel={endDrag}
       >
+        <div class="cell-inner" inert={moving}>
         <Widget
           widget={w}
           dragging={moving}
           onedit={() => (editorFor = w)}
           onremove={() => remove(w.id)}
           onresize={(n) => resize(w.id, n)}
-          ondetail={() => (detailFor = w)}
+          ondetail={() => openDetail(w)}
+          onmove={(dir) => move(w.id, dir)}
         />
+        </div>
         {#if canArrange}
           <div
             class="resize"
@@ -277,7 +335,7 @@
 {/if}
 
 {#if detailFor}
-  <WidgetDetail widget={detailFor} onclose={() => (detailFor = null)} />
+  <WidgetDetail widget={detailFor} onclose={closeDetail} />
 {/if}
 
 <style>

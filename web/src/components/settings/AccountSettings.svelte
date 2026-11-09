@@ -39,7 +39,7 @@
 
 <form class="card section" onsubmit={saveProfile}>
   <h3>Profil &amp; Verhalten</h3>
-  <label class="field"><span>Anzeigename</span><input class="input" bind:value={displayName} /></label>
+  <label class="field"><span>Anzeigename</span><input class="input" name="displayName" autocomplete="name" bind:value={displayName} /></label>
   <label class="field">
     <span>Websuche</span>
     <select class="input" value={app.user?.settings.searchEngine ?? ''} onchange={(e) => saveUserSettings({ searchEngine: e.currentTarget.value || undefined })}>
@@ -57,15 +57,15 @@
     <input type="checkbox" checked={app.user?.settings.greeting !== false} onchange={(e) => saveUserSettings({ greeting: e.currentTarget.checked })} />
     Begrüßung über der Suche anzeigen
   </label>
-  <div><button class="btn primary" type="submit">Speichern</button></div>
+  <div><button class="btn primary" type="submit">Profil speichern</button></div>
 </form>
 
 <form class="card section" onsubmit={changePassword}>
   <h3>Passwort ändern</h3>
   <div class="form-grid">
-    <label class="field"><span>Aktuelles Passwort</span><input class="input" type="password" autocomplete="current-password" required bind:value={current} /></label>
-    <label class="field"><span>Neues Passwort</span><input class="input" type="password" autocomplete="new-password" minlength="8" required bind:value={next} /></label>
-    <label class="field"><span>Wiederholen</span><input class="input" type="password" autocomplete="new-password" required bind:value={next2} /></label>
+    <label class="field"><span>Aktuelles Passwort</span><input class="input" type="password" name="current-password" autocomplete="current-password" required bind:value={current} /></label>
+    <label class="field"><span>Neues Passwort</span><input class="input" type="password" name="new-password" autocomplete="new-password" minlength="8" required bind:value={next} /></label>
+    <label class="field"><span>Wiederholen</span><input class="input" type="password" name="new-password-repeat" autocomplete="new-password" required bind:value={next2} /></label>
   </div>
   <div><button class="btn primary" type="submit">Passwort ändern</button></div>
 </form>

@@ -12,7 +12,8 @@ Home-Assistant-Lampen direkt in der Ergebnisliste.
 - **Detailansicht** für jedes Widget (z. B. alle Torrents mit Geschwindigkeitsverlauf, alle Home-Assistant-Geräte nach Bereich)
 - **Mehrere Benutzer**, jeder mit eigenem Dashboard und Theme; Admin verwaltet Dienste und Benutzer
 - **Einmal anmelden** – die Sitzung bleibt bis zu 400 Tage gültig und verlängert sich bei Nutzung (ideal als Browser-Startseite)
-- **Themes**: Nacht, Papier, Fjord, Terminal, Glas – plus Theme-Editor mit Live-Vorschau, Export/Import als JSON
+- **Themes**: Geist (Standard) und Geist Hell, Nacht, Papier, Fjord, Terminal, Glas – plus Theme-Editor mit Live-Vorschau, Export/Import als JSON
+- **Barrierearm** nach den [Vercel Web Interface Guidelines](docs/ui-review-web-interface-guidelines.md): Tastaturbedienung inkl. Widgets verschieben, sichtbarer Fokus, Skip-Link, Screenreader-Texte, reduzierte Bewegung
 - **Konfiguration per Oberfläche *und* `kompass.yaml`** (mit `${ENV}`-Variablen für Geheimnisse)
 - Dienst-Icons automatisch aus [dashboard-icons](https://dashboardicons.com), lokal zwischengespeichert
 - API-Keys werden verschlüsselt gespeichert und verlassen nie den Server (auch Bilder laufen über einen Proxy)

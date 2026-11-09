@@ -200,7 +200,7 @@
     let w = homelabBang ? 0.05 : webIntent(text);
     if (!homelabBang && !streaming && bestLocal < 0.6) w = Math.max(w, 0.9);
     if (engine) {
-      out.push({ id: 'web:main', title: `„${text}“ mit ${engine.name} suchen`, subtitle: homelabBang ? undefined : 'Ctrl ↵ springt immer direkt hierher', glyph: 'globe', group: 'Web', kind: 'web', score: w, exec: () => webSearch(text) });
+      out.push({ id: 'web:main', title: `„${text}“ mit ${engine.name} suchen`, subtitle: homelabBang ? undefined : 'Ctrl\u00a0↵ springt immer direkt hierher', glyph: 'globe', group: 'Web', kind: 'web', score: w, exec: () => webSearch(text) });
       if (!homelabBang) suggestions.slice(0, 4).forEach((s, i) => out.push({ id: `web:s:${s}`, title: s, group: 'Web', kind: 'web', score: w - 0.02 - i * 0.005, glyph: 'search', exec: () => webSearch(s) }));
     }
     return out;
@@ -353,7 +353,7 @@
         bind:this={input}
         bind:value={query}
         {onkeydown}
-        placeholder="Suchen, steuern, starten … (! für Präfixe, > für Befehle)"
+        placeholder="z. B. „dune“, „licht“, „!g wetter“ oder „> theme“…"
         aria-label="Suche"
         aria-controls="search-results"
         aria-activedescendant={selected ? `r-${selected.id}` : undefined}
@@ -375,14 +375,17 @@
               <span><span class="kbd">!ha</span> nur Home Assistant</span>
               <span><span class="kbd">!m</span> alle Mediendienste</span>
               <span><span class="kbd">&gt;</span> Befehle</span>
-              <span><span class="kbd">Ctrl ↵</span> direkt ins Web</span>
+              <span><span class="kbd">Ctrl&nbsp;↵</span> direkt ins Web</span>
             </div>
           </div>
         {/if}
         {#each groups as g (g.name)}
           <div class="group">
-            <div class="group-title">{g.name}</div>
+            <div class="group-title" translate="no">{g.name}</div>
             {#each g.items as it (it.id)}
+              <!-- Listbox pattern: keyboard focus stays in the search input (arrow keys + aria-activedescendant),
+                   so options only need pointer handlers. -->
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
               <div
                 id="r-{it.id}"
                 class="result"
@@ -397,10 +400,9 @@
                   }
                 }}
                 onclick={(e) => !(e.target as HTMLElement).closest('button, input, a') && execute(it)}
-                onkeydown={() => {}}
               >
                 {#if it.image}
-                  <img class="thumb" src={it.image} alt="" loading="lazy" />
+                  <img class="thumb" src={it.image} alt="" width="34" height="50" loading="lazy" />
                 {:else if it.icon}
                   <span class="lead"><Icon name={it.icon} label={it.iconLabel ?? it.title} size={26} /></span>
                 {:else}
@@ -436,7 +438,7 @@
         {@const d = selected.detail}
         <aside class="detail">
           <div class="d-head">
-            {#if d.image}<img class="poster" src={d.image} alt="" />{/if}
+            {#if d.image}<img class="poster" src={d.image} alt="" width="96" height="144" fetchpriority="high" />{/if}
             <div class="d-title">
               <h3>{d.title}</h3>
               {#if d.meta?.length}<div class="d-meta">{d.meta.join(' · ')}</div>{/if}
@@ -489,6 +491,7 @@
     justify-content: center;
     align-items: flex-start;
     padding: min(12vh, 120px) 12px 24px;
+    overscroll-behavior: contain;
   }
   .palette {
     width: min(980px, 100%);
@@ -513,6 +516,10 @@
     padding: 16px 20px;
     border-bottom: 1px solid var(--border);
     color: var(--accent);
+  }
+  /* the whole bar shows the focus ring instead of the bare input */
+  .bar:focus-within {
+    box-shadow: inset 0 -2px 0 var(--accent);
   }
   .bar input {
     flex: 1;
@@ -544,6 +551,7 @@
     flex: 1;
     min-width: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 6px 8px 10px;
   }
   .group-title {
@@ -650,6 +658,7 @@
     flex-direction: column;
     gap: 14px;
     overflow-y: auto;
+    overscroll-behavior: contain;
     background: color-mix(in srgb, var(--surface-2) 50%, transparent);
   }
   .d-head {

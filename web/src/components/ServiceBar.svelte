@@ -10,7 +10,7 @@
       <a class="svc card" href={s.publicUrl || '#'} target={linkTarget()} rel="noopener" title={st?.message ?? s.publicUrl}>
         <Icon name={s.icon} label={s.name} size={28} />
         <span class="text">
-          <span class="name">{s.name}</span>
+          <span class="name" translate="no">{s.name}</span>
           <span class="ping mono">{st ? (st.ok ? `${st.ms} ms` : (st.message ?? 'offline')) : '…'}</span>
         </span>
         <span class="dot {st ? (st.ok ? 'bg-ok' : 'bg-bad') : ''}" aria-label={st ? (st.ok ? 'online' : 'offline') : 'unbekannt'}></span>

@@ -8,13 +8,20 @@
   let password = $state('');
   let password2 = $state('');
   let error = $state('');
+  let errorField = $state<'username' | 'password' | 'password2' | null>(null);
   let busy = $state(false);
+  let userInput: HTMLInputElement;
+  let passInput: HTMLInputElement;
+  let pass2Input: HTMLInputElement | undefined = $state();
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
     error = '';
+    errorField = null;
     if (setup && password !== password2) {
-      error = 'Die Passwörter stimmen nicht überein';
+      error = 'Die Passwörter stimmen nicht überein – bitte beide Felder gleich ausfüllen.';
+      errorField = 'password2';
+      pass2Input?.focus();
       return;
     }
     busy = true;
@@ -23,6 +30,9 @@
       await loadAll();
     } catch (err) {
       error = (err as Error).message;
+      // put the error next to the field it belongs to and move focus there
+      errorField = /benutzername/i.test(error) && !/passwort falsch/i.test(error) ? 'username' : 'password';
+      (errorField === 'username' ? userInput : passInput)?.focus();
     } finally {
       busy = false;
     }
@@ -45,30 +55,66 @@
 
     <label class="field">
       <span>Benutzername</span>
-      <input class="input" autocomplete="username" required bind:value={username} />
+      <input
+        bind:this={userInput}
+        class="input"
+        name="username"
+        autocomplete="username"
+        autocapitalize="none"
+        spellcheck="false"
+        required
+        placeholder="z. B. alex…"
+        aria-invalid={errorField === 'username'}
+        aria-describedby={errorField === 'username' ? 'auth-error' : undefined}
+        bind:value={username}
+      />
+      {#if errorField === 'username'}<small class="err" id="auth-error" role="alert">{error}</small>{/if}
     </label>
     {#if setup}
       <label class="field">
         <span>Anzeigename (optional)</span>
-        <input class="input" autocomplete="name" bind:value={displayName} />
+        <input class="input" name="name" autocomplete="name" placeholder="z. B. Alex…" bind:value={displayName} />
       </label>
     {/if}
     <label class="field">
       <span>Passwort</span>
-      <input class="input" type="password" autocomplete={setup ? 'new-password' : 'current-password'} required minlength={setup ? 8 : undefined} bind:value={password} />
+      <input
+        bind:this={passInput}
+        class="input"
+        type="password"
+        name="password"
+        autocomplete={setup ? 'new-password' : 'current-password'}
+        required
+        minlength={setup ? 8 : undefined}
+        aria-invalid={errorField === 'password'}
+        aria-describedby={errorField === 'password' ? 'auth-error' : setup ? 'pw-hint' : undefined}
+        bind:value={password}
+      />
+      {#if errorField === 'password'}<small class="err" id="auth-error" role="alert">{error}</small>{:else if setup}<small id="pw-hint">Mindestens 8 Zeichen</small>{/if}
     </label>
     {#if setup}
       <label class="field">
         <span>Passwort wiederholen</span>
-        <input class="input" type="password" autocomplete="new-password" required bind:value={password2} />
+        <input
+          bind:this={pass2Input}
+          class="input"
+          type="password"
+          name="password-repeat"
+          autocomplete="new-password"
+          required
+          aria-invalid={errorField === 'password2'}
+          aria-describedby={errorField === 'password2' ? 'auth-error' : undefined}
+          bind:value={password2}
+        />
+        {#if errorField === 'password2'}<small class="err" id="auth-error" role="alert">{error}</small>{/if}
       </label>
     {/if}
 
-    {#if error}<div class="banner bad" role="alert">{error}</div>{/if}
+    {#if error && !errorField}<div class="banner bad" role="alert">{error}</div>{/if}
 
     <button class="btn primary big" type="submit" disabled={busy}>
       {#if busy}<span class="spinner"></span>{/if}
-      {setup ? 'Administrator anlegen' : 'Anmelden'}
+      {busy ? (setup ? 'Lege an…' : 'Melde an…') : setup ? 'Administrator anlegen' : 'Anmelden'}
     </button>
   </form>
 </main>
@@ -103,6 +149,9 @@
   p {
     margin: -6px 0 4px;
     font-size: 14px;
+  }
+  .err {
+    color: var(--bad);
   }
   .big {
     min-height: 46px;

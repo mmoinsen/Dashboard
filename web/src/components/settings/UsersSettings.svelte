@@ -68,18 +68,18 @@
 {#if editing}
   <Modal title={editing === 'new' ? 'Benutzer anlegen' : `${editing.username} bearbeiten`} onclose={() => (editing = null)} width={480}>
     <form id="user-form" class="form" onsubmit={save}>
-      <label class="field"><span>Benutzername *</span><input class="input" required bind:value={form.username} autocomplete="off" /></label>
-      <label class="field"><span>Anzeigename</span><input class="input" bind:value={form.displayName} /></label>
+      <label class="field"><span>Benutzername *</span><input class="input" name="username" required autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="z. B. sam…" bind:value={form.username} /></label>
+      <label class="field"><span>Anzeigename</span><input class="input" name="displayName" autocomplete="off" placeholder="z. B. Sam…" bind:value={form.displayName} /></label>
       <label class="field">
         <span>{editing === 'new' ? 'Passwort *' : 'Neues Passwort (optional)'}</span>
-        <input class="input" type="password" autocomplete="new-password" required={editing === 'new'} minlength="8" bind:value={form.password} />
+        <input class="input" type="password" name="new-password" autocomplete="new-password" required={editing === 'new'} minlength="8" bind:value={form.password} />
         <small>Mindestens 8 Zeichen{editing !== 'new' ? ' · meldet den Benutzer überall ab' : ''}</small>
       </label>
       <label class="check"><input type="checkbox" bind:checked={form.isAdmin} /> Administrator</label>
     </form>
     {#snippet footer()}
       <button class="btn" onclick={() => (editing = null)}>Abbrechen</button>
-      <button class="btn primary" type="submit" form="user-form">Speichern</button>
+      <button class="btn primary" type="submit" form="user-form">{editing === 'new' ? 'Benutzer anlegen' : 'Benutzer speichern'}</button>
     {/snippet}
   </Modal>
 {/if}

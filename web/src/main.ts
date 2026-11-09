@@ -1,4 +1,6 @@
 import '@fontsource-variable/inter';
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
 import '@fontsource/space-grotesk/500.css';
 import '@fontsource/space-grotesk/600.css';
 import '@fontsource/space-grotesk/700.css';
@@ -14,9 +16,6 @@ import { installGlobalErrorReporting } from './lib/report.ts';
 
 installGlobalErrorReporting();
 
-const meta = document.createElement('meta');
-meta.name = 'theme-color';
-document.head.appendChild(meta);
 
 mount(App, { target: document.getElementById('app')! });
 boot();

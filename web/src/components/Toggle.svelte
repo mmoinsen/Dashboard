@@ -155,6 +155,9 @@
   }
   .on .knob {
     transform: translateX(18px);
+    /* contrast colour of the accent: stays visible on light accents (monochrome themes) */
+    background: var(--accent-text);
+    box-shadow: none;
   }
   .switch:focus-visible {
     outline: 2px solid var(--accent);

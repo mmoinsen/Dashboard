@@ -1,6 +1,8 @@
 import type { Theme, ThemeTokens } from './types.ts';
 
 const FONTS = {
+  geist: "'Geist Variable', 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif",
+  geistMono: "'Geist Mono Variable', 'JetBrains Mono', ui-monospace, monospace",
   inter: "'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
   grotesk: "'Space Grotesk', 'Inter Variable', system-ui, sans-serif",
   mono: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
@@ -9,10 +11,12 @@ const FONTS = {
 };
 
 export const FONT_OPTIONS = [
+  { value: FONTS.geist, label: 'Geist' },
   { value: FONTS.inter, label: 'Inter' },
   { value: FONTS.grotesk, label: 'Space Grotesk' },
   { value: FONTS.serif, label: 'Fraunces (Serif)' },
   { value: FONTS.mono, label: 'JetBrains Mono' },
+  { value: FONTS.geistMono, label: 'Geist Mono' },
   { value: FONTS.system, label: 'Systemschrift' },
 ];
 
@@ -30,6 +34,53 @@ const base: Omit<ThemeTokens, 'bg' | 'surface' | 'surface2' | 'border' | 'text' 
 };
 
 export const PRESETS: Theme[] = [
+  // Monochrome, high-contrast look with crisp hairlines (default).
+  {
+    id: 'geist',
+    name: 'Geist',
+    tokens: {
+      ...base,
+      bg: '#0a0a0a',
+      surface: '#111111',
+      surface2: '#191919',
+      border: '#2a2a2a',
+      text: '#ededed',
+      muted: '#a1a1a1',
+      accent: '#ededed',
+      accentText: '#0a0a0a',
+      accent2: '#52a8ff',
+      ok: '#3dd68c',
+      warn: '#f5b84a',
+      bad: '#ff6166',
+      radius: 12,
+      fontBody: FONTS.geist,
+      fontHeading: FONTS.geist,
+      fontMono: FONTS.geistMono,
+    },
+  },
+  {
+    id: 'geist-light',
+    name: 'Geist Hell',
+    tokens: {
+      ...base,
+      bg: '#fafafa',
+      surface: '#ffffff',
+      surface2: '#f4f4f5',
+      border: '#e4e4e7',
+      text: '#171717',
+      muted: '#5f5f66',
+      accent: '#171717',
+      accentText: '#ffffff',
+      accent2: '#0062d1',
+      ok: '#13804a',
+      warn: '#a35c00',
+      bad: '#d1242f',
+      radius: 12,
+      fontBody: FONTS.geist,
+      fontHeading: FONTS.geist,
+      fontMono: FONTS.geistMono,
+    },
+  },
   {
     id: 'nacht',
     name: 'Nacht',

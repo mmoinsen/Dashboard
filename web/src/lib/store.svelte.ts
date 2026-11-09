@@ -136,15 +136,21 @@ export async function saveUserSettings(patch: Partial<UserPublic['settings']>, d
 
 // ---------- toasts ----------
 
-export const toasts: { id: number; text: string; tone: string }[] = $state([]);
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
+export const toasts: { id: number; text: string; tone: string; action?: ToastAction }[] = $state([]);
 let toastId = 0;
-export function toast(text: string, tone: 'ok' | 'bad' | 'default' = 'default') {
+/** Short notification; with `action` (e.g. "Rückgängig") it stays a bit longer. */
+export function toast(text: string, tone: 'ok' | 'bad' | 'default' = 'default', action?: ToastAction) {
   const id = ++toastId;
-  toasts.push({ id, text, tone });
-  setTimeout(() => {
-    const i = toasts.findIndex((t) => t.id === id);
-    if (i >= 0) toasts.splice(i, 1);
-  }, 3500);
+  toasts.push({ id, text, tone, action });
+  setTimeout(() => dismissToast(id), action ? 7000 : 3500);
+}
+export function dismissToast(id: number) {
+  const i = toasts.findIndex((t) => t.id === id);
+  if (i >= 0) toasts.splice(i, 1);
 }
 
 export function linkTarget() {

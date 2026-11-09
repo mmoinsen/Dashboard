@@ -8,7 +8,7 @@
   import Glyph from './components/Glyph.svelte';
   import { app, navigate, refreshServices, saveDashboard } from './lib/store.svelte.ts';
 
-  const route = $derived(app.route);
+  const route = $derived(app.route.split('?')[0]);
   const settingsTab = $derived(route.startsWith('/settings') ? route.split('/')[2] || 'appearance' : null);
   const pageId = $derived(route.startsWith('/p/') ? route.slice(3) : undefined);
   const page = $derived(app.dashboard?.pages.find((p) => p.id === pageId) ?? app.dashboard?.pages[0]);
@@ -78,6 +78,7 @@
 {:else if app.phase === 'setup' || app.phase === 'login'}
   <AuthScreen />
 {:else}
+  <a class="skip-link" href="#main" onclick={(e) => { e.preventDefault(); document.getElementById('main')?.focus(); }}>Zum Inhalt springen</a>
   <div class="shell">
     <TopBar currentPage={settingsTab ? '__settings' : page?.id} />
 
@@ -85,7 +86,9 @@
       <div class="banner bad">Fehler in kompass.yaml: {app.configError}</div>
     {/if}
 
+    <main id="main" tabindex="-1">
     {#if settingsTab}
+      <h1 class="sr-only">Einstellungen</h1>
       <Settings tab={settingsTab} />
     {:else if page}
       {#if app.editing}
@@ -104,6 +107,7 @@
         <Dashboard {page} />
       {/key}
     {/if}
+    </main>
   </div>
 
   {#if app.searchOpen}
@@ -119,17 +123,23 @@
     display: grid;
     place-items: center;
   }
+  main {
+    display: flex;
+    flex-direction: column;
+    gap: calc(22px * var(--space));
+    outline: none; /* programmatic focus target of the skip link only */
+  }
   .shell {
     max-width: 1480px;
     margin: 0 auto;
-    padding: 20px 16px 64px;
+    padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(64px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
     display: flex;
     flex-direction: column;
     gap: calc(22px * var(--space));
   }
   @media (min-width: 900px) {
     .shell {
-      padding: 24px 32px 72px;
+      padding: max(24px, env(safe-area-inset-top)) max(32px, env(safe-area-inset-right)) max(72px, env(safe-area-inset-bottom)) max(32px, env(safe-area-inset-left));
     }
   }
   .pagebar {

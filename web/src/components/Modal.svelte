@@ -2,18 +2,50 @@
   import type { Snippet } from 'svelte';
   import Glyph from './Glyph.svelte';
 
-  let { title, onclose, children, footer, width = 560 }: { title: string; onclose: () => void; children: Snippet; footer?: Snippet; width?: number } = $props();
+  let {
+    title,
+    onclose,
+    children,
+    footer,
+    width = 560,
+    confirmClose,
+  }: {
+    title: string;
+    onclose: () => void;
+    children: Snippet;
+    footer?: Snippet;
+    width?: number;
+    /** Return false to keep the dialog open (e.g. unsaved changes). */
+    confirmClose?: () => boolean;
+  } = $props();
 
   let dialog: HTMLDialogElement;
+  const titleId = `modal-title-${Math.random().toString(36).slice(2, 8)}`;
   $effect(() => {
     dialog.showModal();
   });
+
+  function requestClose() {
+    if (confirmClose && !confirmClose()) return;
+    dialog.close();
+  }
 </script>
 
-<dialog bind:this={dialog} class="modal card" style="--w:{width}px" onclose={onclose} onclick={(e) => e.target === dialog && dialog.close()}>
+<dialog
+  bind:this={dialog}
+  class="modal card"
+  style="--w:{width}px"
+  aria-labelledby={titleId}
+  onclose={onclose}
+  oncancel={(e) => {
+    e.preventDefault();
+    requestClose();
+  }}
+  onclick={(e) => e.target === dialog && requestClose()}
+>
   <header>
-    <h2>{title}</h2>
-    <button class="icon-btn" aria-label="Schließen" onclick={() => dialog.close()}><Glyph name="x" /></button>
+    <h2 id={titleId}>{title}</h2>
+    <button class="icon-btn" aria-label="Schließen" onclick={requestClose}><Glyph name="x" /></button>
   </header>
   <div class="body">{@render children()}</div>
   {#if footer}
@@ -52,6 +84,7 @@
   .body {
     padding: 8px 22px 20px;
     overflow: auto;
+    overscroll-behavior: contain;
     display: flex;
     flex-direction: column;
     gap: 16px;
