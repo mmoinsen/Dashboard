@@ -3,10 +3,23 @@ import { Agent, fetch as undiciFetch, type Dispatcher } from 'undici';
 export class HttpError extends Error {
   status: number;
   body: string;
-  constructor(status: number, message: string, body = '') {
+  /** Request URL without query string (which may contain API keys). */
+  url?: string;
+  constructor(status: number, message: string, body = '', url?: string) {
     super(message);
     this.status = status;
     this.body = body;
+    this.url = url;
+  }
+}
+
+/** URL safe for logs: no query string, no credentials. */
+export function safeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.protocol}//${u.host}${u.pathname}`;
+  } catch {
+    return url.split('?')[0];
   }
 }
 
@@ -78,16 +91,25 @@ export class HttpClient {
         headers['Content-Type'] ??= 'application/json';
       }
     }
-    const res = await undiciFetch(this.url(path, options.query), {
-      method: options.method ?? (body !== undefined ? 'POST' : 'GET'),
-      headers,
-      body,
-      dispatcher: dispatcherFor(this.opts),
-      signal: AbortSignal.timeout(options.timeout ?? this.opts.timeout ?? 8000),
-    } as any);
+    const fullUrl = this.url(path, options.query);
+    const method = options.method ?? (body !== undefined ? 'POST' : 'GET');
+    let res;
+    try {
+      res = await undiciFetch(fullUrl, {
+        method,
+        headers,
+        body,
+        dispatcher: dispatcherFor(this.opts),
+        signal: AbortSignal.timeout(options.timeout ?? this.opts.timeout ?? 8000),
+      } as any);
+    } catch (err) {
+      // network errors (refused, DNS, timeout): remember where we tried to go
+      if (err && typeof err === 'object') (err as any).url = `${method} ${this.opts.socketPath ? `unix:${this.opts.socketPath}` : ''}${safeUrl(fullUrl)}`;
+      throw err;
+    }
     if (options.raw) return res as unknown as T;
     const text = await res.text();
-    if (!res.ok) throw new HttpError(res.status, `HTTP ${res.status} ${res.statusText}`, text.slice(0, 500));
+    if (!res.ok) throw new HttpError(res.status, `HTTP ${res.status} ${res.statusText}`, text.slice(0, 500), `${method} ${safeUrl(fullUrl)}`);
     if (!text) return undefined as T;
     const type = res.headers.get('content-type') ?? '';
     if (type.includes('json') || /^[\[{]/.test(text.trim())) {

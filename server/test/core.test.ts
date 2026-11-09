@@ -90,3 +90,20 @@ test('selectProviders: default, integration bang, category bang, web bang', () =
   assert.deepEqual(ids(selectProviders(all, 'm')), ['jellyfin', 'sonarr']);
   assert.equal(selectProviders(all, 'g').explicit, false);
 });
+
+test('FailureTracker logs a failure once and its recovery once', async () => {
+  const { FailureTracker } = await import('../src/lib/log.ts');
+  const t = new FailureTracker();
+  assert.equal(t.update('qb', null), null, 'healthy from the start: nothing to log');
+  assert.equal(t.update('qb', 'Verbindung abgelehnt'), 'failed');
+  assert.equal(t.update('qb', 'Verbindung abgelehnt'), null, 'same error again is not repeated');
+  assert.equal(t.update('qb', 'Zeitüberschreitung'), 'failed', 'a different error is logged');
+  assert.equal(t.update('qb', null), 'recovered');
+  assert.equal(t.update('qb', null), null);
+});
+
+test('safeUrl strips query strings (API keys) from logged URLs', async () => {
+  const { safeUrl } = await import('../src/lib/http.ts');
+  assert.equal(safeUrl('http://sab:8080/api?mode=queue&apikey=SECRET'), 'http://sab:8080/api');
+  assert.equal(safeUrl('http://user:pw@pihole/admin/api.php?auth=x'), 'http://pihole/admin/api.php');
+});

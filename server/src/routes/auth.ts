@@ -3,6 +3,9 @@ import { requireAdmin, requireUser, type AppContext } from '../app.ts';
 import { SESSION_COOKIE, clearSessionCookie, setSessionCookie, toPublicUser, validateUsername } from '../auth.ts';
 import { verifyPassword } from '../lib/crypto.ts';
 import type { UserSettings } from '../shared/types.ts';
+import { logger } from '../lib/log.ts';
+
+const log = logger('auth');
 
 function sanitizeSettings(input: any, previous: UserSettings): UserSettings {
   const out: UserSettings = { ...previous };
@@ -27,13 +30,21 @@ export const authRoutes = (ctx: AppContext) => async (app: FastifyInstance) => {
     if (auth.userCount() > 0) return reply.status(409).send({ error: 'Ersteinrichtung bereits abgeschlossen' });
     const b = req.body as any;
     const user = await auth.createUser(b?.username, b?.password, b?.displayName, true);
+    log.info(`Ersteinrichtung abgeschlossen, Administrator "${user.username}" angelegt`, { ip: req.ip });
     setSessionCookie(req, reply, auth.createSession(user.id, req.headers['user-agent']));
     return { user: toPublicUser(user) };
   });
 
   app.post('/auth/login', async (req, reply) => {
     const b = req.body as any;
-    const user = await auth.login(b?.username, b?.password, req.ip);
+    let user;
+    try {
+      user = await auth.login(b?.username, b?.password, req.ip);
+    } catch (err) {
+      log.warn(`Anmeldung fehlgeschlagen für "${String(b?.username ?? '').slice(0, 40)}": ${(err as Error).message}`, { ip: req.ip });
+      throw err;
+    }
+    log.info(`"${user.username}" hat sich angemeldet`, { ip: req.ip, secure: req.protocol === 'https' });
     setSessionCookie(req, reply, auth.createSession(user.id, req.headers['user-agent']));
     return { user: toPublicUser(user) };
   });
@@ -41,6 +52,7 @@ export const authRoutes = (ctx: AppContext) => async (app: FastifyInstance) => {
   app.post('/auth/logout', async (req, reply) => {
     const token = req.cookies[SESSION_COOKIE];
     if (token) auth.destroySession(token);
+    if (req.user) log.info(`"${req.user.username}" hat sich abgemeldet`);
     clearSessionCookie(reply);
     return { ok: true };
   });
@@ -61,6 +73,7 @@ export const authRoutes = (ctx: AppContext) => async (app: FastifyInstance) => {
     if (!(await verifyPassword(String(b?.current ?? ''), req.user!.password_hash))) throw new Error('Aktuelles Passwort ist falsch');
     await auth.setPassword(req.user!.id, b?.next);
     auth.destroyUserSessions(req.user!.id, req.cookies[SESSION_COOKIE]);
+    log.info(`"${req.user!.username}" hat das Passwort geändert`);
     return { ok: true };
   });
 
@@ -76,6 +89,7 @@ export const authRoutes = (ctx: AppContext) => async (app: FastifyInstance) => {
   app.post('/users', { preHandler: requireAdmin }, async (req) => {
     const b = req.body as any;
     const user = await auth.createUser(b?.username, b?.password, b?.displayName, Boolean(b?.isAdmin));
+    log.info(`Benutzer "${user.username}" angelegt${user.is_admin ? ' (Admin)' : ''} von "${req.user!.username}"`);
     return { user: toPublicUser(user) };
   });
 
@@ -92,6 +106,7 @@ export const authRoutes = (ctx: AppContext) => async (app: FastifyInstance) => {
     ctx.db
       .prepare('UPDATE users SET username = ?, display_name = ?, is_admin = ? WHERE id = ?')
       .run(username, String(b?.displayName ?? user.display_name).trim() || username, isAdmin ? 1 : 0, id);
+    log.info(`Benutzer "${username}" geändert von "${req.user!.username}"`, { admin: isAdmin, passwordReset: Boolean(b?.password) });
     if (b?.password) {
       await auth.setPassword(id, b.password);
       auth.destroyUserSessions(id, id === req.user!.id ? req.cookies[SESSION_COOKIE] : undefined);
@@ -102,7 +117,9 @@ export const authRoutes = (ctx: AppContext) => async (app: FastifyInstance) => {
   app.delete('/users/:id', { preHandler: requireAdmin }, async (req) => {
     const id = Number((req.params as any).id);
     if (id === req.user!.id) throw new Error('Du kannst dich nicht selbst löschen');
+    const victim = auth.getUser(id);
     ctx.db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    if (victim) log.info(`Benutzer "${victim.username}" gelöscht von "${req.user!.username}"`);
     return { ok: true };
   });
 };

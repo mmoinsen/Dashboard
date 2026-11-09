@@ -10,6 +10,9 @@ import './app.css';
 import { mount } from 'svelte';
 import App from './App.svelte';
 import { boot } from './lib/store.svelte.ts';
+import { installGlobalErrorReporting } from './lib/report.ts';
+
+installGlobalErrorReporting();
 
 const meta = document.createElement('meta');
 meta.name = 'theme-color';

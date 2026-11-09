@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { DB } from './db.ts';
 import { hashPassword, randomToken, sha256, verifyPassword } from './lib/crypto.ts';
+import { logger } from './lib/log.ts';
 import type { UserPublic, UserSettings } from './shared/types.ts';
 
 export const SESSION_COOKIE = 'kompass_session';
@@ -90,6 +91,7 @@ export class Auth {
     if (!user || !ok) {
       const count = (f?.count ?? 0) + 1;
       this.failures.set(key, { count, until: count >= 5 ? Date.now() + Math.min(2 ** (count - 5), 300) * 1000 : 0 });
+      if (count === 5) logger('auth').warn(`5 Fehlversuche für "${String(username).slice(0, 40)}" – weitere Versuche werden gebremst`, { ip });
       throw new Error('Benutzername oder Passwort falsch');
     }
     this.failures.delete(key);

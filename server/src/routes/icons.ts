@@ -3,6 +3,9 @@ import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fetch } from 'undici';
 import type { AppContext } from '../app.ts';
+import { logger } from '../lib/log.ts';
+
+const log = logger('icons');
 
 /**
  * Service icons come from the dashboard-icons collection (homarr-labs/dashboard-icons),
@@ -25,18 +28,33 @@ export const iconRoutes = (ctx: AppContext) => async (app: FastifyInstance) => {
   const dir = join(ctx.configDir, 'cache', 'icons');
   const inflight = new Map<string, Promise<{ ext: string; data: Buffer } | null>>();
 
+  let networkWarned = false;
+  let offlineUntil = 0;
   async function download(name: string) {
+    if (Date.now() < offlineUntil) return null; // CDN recently unreachable: don't wait for timeouts again
+    let networkError: string | undefined;
     for (const src of SOURCES(name)) {
       try {
         const res = await fetch(src.url, { signal: AbortSignal.timeout(8000) });
         if (!res.ok) continue;
         const data = Buffer.from(await res.arrayBuffer());
         writeFileSync(join(dir, `${name}.${src.ext}`), data);
+        log.debug(`Icon "${name}" heruntergeladen`, { source: src.url });
+        networkWarned = false;
         return { ext: src.ext, data };
-      } catch {
-        /* next source */
+      } catch (err) {
+        const e = err as any;
+        networkError = e?.cause?.code ?? e?.name ?? e?.message;
       }
     }
+    if (networkError) {
+      // Do not cache as "missing": the icon may exist, we just could not reach the CDN.
+      if (!networkWarned) log.warn(`Icons können nicht geladen werden – ist cdn.jsdelivr.net erreichbar? Es werden Buchstaben angezeigt, neuer Versuch in 5 min.`, { error: networkError });
+      networkWarned = true;
+      offlineUntil = Date.now() + 5 * 60_000;
+      return null;
+    }
+    log.info(`Icon "${name}" gibt es nicht in dashboard-icons – im Dienst ein anderes Icon eintragen`);
     writeFileSync(join(dir, `${name}.missing`), '');
     return null;
   }

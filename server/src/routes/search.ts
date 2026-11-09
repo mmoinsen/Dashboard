@@ -4,6 +4,10 @@ import { requireUser, type AppContext } from '../app.ts';
 import { getIntegration } from '../integrations/index.ts';
 import type { ServiceInstance } from '../integrations/types.ts';
 import { describeError } from '../lib/http.ts';
+import { FailureTracker, errorDetails, logger } from '../lib/log.ts';
+
+const log = logger('search');
+const failures = new FailureTracker();
 import { CATEGORY_BANGS, parseQuery } from '../shared/query.ts';
 import { effectiveSettings } from './dashboard.ts';
 
@@ -56,12 +60,22 @@ export const searchRoutes = (ctx: AppContext) => async (app: FastifyInstance) =>
             def.search!(ctx.services.context(s), { text: parsed.text, explicit, limit: explicit ? 20 : 6 }),
             new Promise<never>((_, rej) => setTimeout(() => rej(Object.assign(new Error('Zeitüberschreitung'), { name: 'TimeoutError' })), timeout)),
           ]);
+          if (failures.update(s.id, null) === 'recovered') log.info(`Suche in ${s.name} funktioniert wieder`);
+          log.debug(`${s.name}: ${results.length} Treffer`, { ms: Date.now() - t0 });
           if (!closed) write({ type: 'results', provider: s.id, name: s.name, icon: s.icon, ms: Date.now() - t0, results });
         } catch (err) {
-          if (!closed) write({ type: 'error', provider: s.id, name: s.name, error: describeError(err) });
+          const message = describeError(err);
+          if (failures.update(s.id, message) === 'failed') {
+            const details = errorDetails(err);
+            const codeBug = err instanceof TypeError && !(err as any).cause;
+            if (!codeBug) delete details.stack;
+            log[codeBug ? 'error' : 'warn'](`Suche in ${s.name} fehlgeschlagen: ${message}`, details);
+          }
+          if (!closed) write({ type: 'error', provider: s.id, name: s.name, error: message });
         }
       }),
     );
+    log.debug(`Suche "${parsed.text}"${parsed.bang ? ` (!${parsed.bang})` : ''}: ${providers.length} Dienste`, { user: req.user?.username });
     write({ type: 'done' });
     reply.raw.end();
     return reply;
@@ -84,7 +98,8 @@ export const searchRoutes = (ctx: AppContext) => async (app: FastifyInstance) =>
       const charset = /charset=([\w-]+)/i.exec(res.headers.get('content-type') ?? '')?.[1] ?? 'utf-8';
       const data = JSON.parse(new TextDecoder(charset).decode(buf));
       return { suggestions: ((data?.[1] ?? []) as string[]).filter((s) => s.toLowerCase() !== q.toLowerCase()).slice(0, 5) };
-    } catch {
+    } catch (err) {
+      if (failures.update('suggest', describeError(err)) === 'failed') log.warn(`Suchvorschläge nicht abrufbar: ${describeError(err)}`, { engine: userEngine });
       return { suggestions: [] };
     }
   });

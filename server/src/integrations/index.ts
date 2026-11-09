@@ -2,6 +2,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { IntegrationDef } from './types.ts';
+import { errorDetails, logger } from '../lib/log.ts';
 import type { IntegrationInfo } from '../shared/types.ts';
 
 import adguard from './adguard.ts';
@@ -87,7 +88,8 @@ export function allIntegrations(): IntegrationDef[] {
  * Load user plugins from <configDir>/plugins/*.{js,mjs,ts}. Each file default-exports an
  * integration definition (see docs/integrations.md). A plugin may override a builtin.
  */
-export async function loadPlugins(dir: string, log: (msg: string) => void) {
+export async function loadPlugins(dir: string) {
+  const log = logger('plugins');
   if (!existsSync(dir)) return;
   for (const file of readdirSync(dir)) {
     if (!/\.(m?js|ts)$/.test(file)) continue;
@@ -96,11 +98,12 @@ export async function loadPlugins(dir: string, log: (msg: string) => void) {
       const defs: IntegrationDef[] = Array.isArray(mod.default) ? mod.default : [mod.default];
       for (const def of defs) {
         if (!def?.id || !def?.name) throw new Error('default export needs at least id and name');
+        const replaced = registry.has(def.id);
         registry.set(def.id, def);
-        log(`Plugin geladen: ${def.name} (${def.id}) aus ${file}`);
+        log.info(`Plugin geladen: ${def.name} (${def.id}) aus ${file}${replaced ? ' – ersetzt eingebaute Integration' : ''}`);
       }
     } catch (err) {
-      log(`Plugin ${file} konnte nicht geladen werden: ${(err as Error).message}`);
+      log.error(`Plugin ${file} konnte nicht geladen werden`, errorDetails(err));
     }
   }
 }

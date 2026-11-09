@@ -1,4 +1,5 @@
-import { get, put } from './api.ts';
+import { ApiError, get, put } from './api.ts';
+import { reportError } from './report.ts';
 import { applyTheme, findTheme } from './themes.ts';
 import type { AppSettings, Dashboard, IntegrationInfo, ServicePublic, ServiceStatus, UserPublic } from './types.ts';
 
@@ -69,7 +70,8 @@ export async function boot() {
       return;
     }
     await loadAll();
-  } catch {
+  } catch (e) {
+    if (!(e instanceof ApiError && e.status === 401)) reportError('Start der Oberfläche', e);
     app.phase = 'login';
   }
 }
@@ -100,7 +102,11 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined;
 export function saveDashboard() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    if (app.dashboard) put('/dashboard', { dashboard: $state.snapshot(app.dashboard) }).catch((e) => toast(e.message, 'bad'));
+    if (!app.dashboard) return;
+    put('/dashboard', { dashboard: $state.snapshot(app.dashboard) }).catch((e) => {
+      toast(`Dashboard konnte nicht gespeichert werden: ${e.message}`, 'bad');
+      if (!(e instanceof ApiError && e.status === 401)) reportError('Dashboard speichern', e);
+    });
   }, 400);
 }
 

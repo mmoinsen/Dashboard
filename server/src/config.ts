@@ -1,5 +1,8 @@
 import { existsSync, readFileSync, unwatchFile, watchFile } from 'node:fs';
 import { parse } from 'yaml';
+import { logger } from './lib/log.ts';
+
+const log = logger('config');
 import type { AppSettings, SearchEngine } from './shared/types.ts';
 
 export interface FileService {
@@ -65,11 +68,8 @@ export class ConfigFile {
   private listeners: (() => void)[] = [];
   readonly path: string;
 
-  private log: (msg: string) => void;
-
-  constructor(path: string, log: (msg: string) => void) {
+  constructor(path: string) {
     this.path = path;
-    this.log = log;
     this.load();
     watchFile(path, { interval: 2000 }, () => {
       this.load();
@@ -79,6 +79,8 @@ export class ConfigFile {
 
   private load() {
     if (!existsSync(this.path)) {
+      if (this.current.services?.length) log.warn(`${this.path} wurde entfernt – Dienste aus der Datei sind nicht mehr aktiv`);
+      else log.info(`Keine ${this.path} gefunden – Dienste werden nur über die Oberfläche verwaltet`);
       this.current = {};
       this.error = null;
       return;
@@ -86,10 +88,15 @@ export class ConfigFile {
     try {
       this.current = parseConfig(readFileSync(this.path, 'utf8'));
       this.error = null;
-      this.log(`Konfiguration geladen: ${this.path} (${this.current.services?.length ?? 0} Dienste)`);
+      log.info(`Konfiguration geladen: ${this.path} (${this.current.services?.length ?? 0} Dienste)`);
+      for (const svc of this.current.services ?? []) {
+        for (const [k, v] of Object.entries(svc)) {
+          if (v === '' && /key|token|password|secret/i.test(k)) log.warn(`Dienst "${svc.id}": ${k} ist leer – Umgebungsvariable gesetzt?`);
+        }
+      }
     } catch (err) {
       this.error = (err as Error).message;
-      this.log(`Fehler in ${this.path}: ${this.error}`);
+      log.error(`Fehler in ${this.path} – alte Konfiguration bleibt aktiv`, { error: this.error });
     }
   }
 

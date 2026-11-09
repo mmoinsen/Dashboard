@@ -8,6 +8,7 @@ import { ConfigFile } from './config.ts';
 import { openDb, type DB } from './db.ts';
 import { loadPlugins } from './integrations/index.ts';
 import { SecretBox } from './lib/crypto.ts';
+import { configureLogger, errorDetails, logger } from './lib/log.ts';
 import { ServiceManager } from './services.ts';
 import { authRoutes } from './routes/auth.ts';
 import { serviceRoutes } from './routes/services.ts';
@@ -44,16 +45,19 @@ export async function buildApp(opts: AppOptions): Promise<{ app: FastifyInstance
   mkdirSync(join(configDir, 'cache', 'icons'), { recursive: true });
   mkdirSync(join(configDir, 'plugins'), { recursive: true });
 
-  // Fastify's own logger only reports problems; Kompass' messages go through log().
-  const app = Fastify({ logger: opts.logger ? { level: 'warn' } : false, trustProxy: true, bodyLimit: 1024 * 1024 });
-  const log = (msg: string) => (opts.logger ? console.log(`[${new Date().toISOString()}] ${msg}`) : undefined);
+  // All output goes through lib/log.ts (LOG_LEVEL / LOG_FORMAT); tests run silent.
+  configureLogger({ silent: !opts.logger });
+  const httpLog = logger('http');
+  const appLog = logger('app');
+  const app = Fastify({ logger: false, trustProxy: true, bodyLimit: 1024 * 1024 });
+  const log = (msg: string) => appLog.info(msg);
 
   const db = openDb(join(configDir, 'kompass.db'));
   const secrets = new SecretBox(join(configDir, 'secret.key'));
-  const file = new ConfigFile(join(configDir, 'kompass.yaml'), log);
+  const file = new ConfigFile(join(configDir, 'kompass.yaml'));
   const services = new ServiceManager(db, file, secrets);
   const auth = new Auth(db);
-  await loadPlugins(join(configDir, 'plugins'), log);
+  await loadPlugins(join(configDir, 'plugins'));
 
   const ctx: AppContext = { db, auth, file, services, configDir, log, trustedHeader: opts.trustedHeader?.toLowerCase() };
 
@@ -83,9 +87,49 @@ export async function buildApp(opts: AppOptions): Promise<{ app: FastifyInstance
     }
   });
 
-  app.setErrorHandler((err: any, _req, reply) => {
+  // Every request at debug level; slow ones (> 3 s, except streams) as warning.
+  app.addHook('onResponse', async (req, reply) => {
+    const ms = Math.round(reply.elapsedTime);
+    const url = req.url.split('?')[0];
+    if (url === '/healthz' || url.startsWith('/assets/') || url.startsWith('/api/icons/')) return;
+    const extra = { status: reply.statusCode, ms, user: req.user?.username, ip: req.ip };
+    if (ms > 3000 && url !== '/api/search') httpLog.warn(`Langsame Anfrage ${req.method} ${url}`, extra);
+    else httpLog.debug(`${req.method} ${url}`, extra);
+  });
+
+  app.setErrorHandler((err: any, req, reply) => {
+    // Our own validation errors ("Name fehlt") are thrown as plain Errors → 400.
+    // Fastify errors carry statusCode; anything >= 500 or without a message is a bug.
     const status = err.statusCode && err.statusCode >= 400 ? err.statusCode : 400;
+    const where = `${req.method} ${req.url.split('?')[0]}`;
+    if (status >= 500) httpLog.error(`Serverfehler bei ${where}`, { ...errorDetails(err), user: req.user?.username });
+    else if (err instanceof TypeError || err instanceof ReferenceError) httpLog.error(`Unerwarteter Fehler bei ${where}`, { ...errorDetails(err), user: req.user?.username });
+    else httpLog.debug(`Abgelehnt ${where}: ${err.message}`, { status, user: req.user?.username });
     reply.status(status).send({ error: err.message ?? String(err) });
+  });
+
+  // Errors from the browser (JS exceptions, failed saves) end up in the container log too.
+  const clientLog = logger('browser');
+  const clientBudget = new Map<string, { n: number; reset: number }>();
+  app.post('/api/client-error', async (req, reply) => {
+    const now = Date.now();
+    const b = clientBudget.get(req.ip) ?? { n: 0, reset: now + 60_000 };
+    if (now > b.reset) Object.assign(b, { n: 0, reset: now + 60_000 });
+    b.n++;
+    clientBudget.set(req.ip, b);
+    if (b.n > 20) return reply.status(429).send();
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined);
+    clientLog.error(str(body.message, 500) ?? 'Unbekannter Fehler im Browser', {
+      where: str(body.where, 100),
+      page: str(body.page, 200),
+      user: req.user?.username,
+      ip: req.ip,
+      browser: str(req.headers['user-agent'], 160),
+      secureContext: typeof body.secureContext === 'boolean' ? body.secureContext : undefined,
+      stack: str(body.stack, 2000),
+    });
+    return { ok: true };
   });
 
   await app.register(authRoutes(ctx), { prefix: '/api' });

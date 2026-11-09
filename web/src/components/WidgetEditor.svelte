@@ -1,5 +1,6 @@
 <script lang="ts">
   import { uid } from '../lib/id.ts';
+  import { reportError } from '../lib/report.ts';
   import { app, integration, navigate, toast } from '../lib/store.svelte.ts';
   import type { WidgetInstance } from '../lib/types.ts';
   import FieldInput from './FieldInput.svelte';
@@ -46,6 +47,7 @@
       submit(source, winfo.id);
     } catch (e) {
       toast(`Widget konnte nicht gespeichert werden: ${(e as Error).message}`, 'bad');
+      reportError('Widget speichern', e);
     }
   }
 

@@ -12,6 +12,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - TZ=Europe/Berlin
+      # Logs: docker logs -f kompass   (debug zeigt jede Anfrage und jedes Widget-Update)
+      - LOG_LEVEL=info   # debug | info | warn | error
       # Geheimnisse für kompass.yaml, z. B.:
       # - SONARR_API_KEY=...
       # Optional: SSO über Reverse Proxy (Authelia/Authentik) – Header mit Benutzername

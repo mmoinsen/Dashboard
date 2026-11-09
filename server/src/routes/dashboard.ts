@@ -123,6 +123,7 @@ export const dashboardRoutes = (ctx: AppContext) => async (app: FastifyInstance)
       next.weather = { latitude: Number(b.weather.latitude), longitude: Number(b.weather.longitude), name: b.weather.name ? String(b.weather.name) : undefined };
     }
     setSetting(ctx.db, 'settings', next);
+    ctx.log(`Allgemeine Einstellungen geändert von "${req.user!.username}"`);
     return { settings: effectiveSettings(ctx) };
   });
 };

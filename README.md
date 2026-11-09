@@ -53,7 +53,21 @@ optional `kompass.yaml`, Plugins (`plugins/`) und der Icon-Cache.
 | ------------------------ | -------- | ----------------------------------------------------------------------------- |
 | `PORT`                   | `8080`   | Port im Container                                                             |
 | `KOMPASS_CONFIG_DIR`     | `/config`| Datenverzeichnis                                                              |
+| `LOG_LEVEL`              | `info`   | `debug` (jede Anfrage, jedes Widget-Update) · `info` · `warn` · `error`        |
+| `LOG_FORMAT`             | `text`   | `json` für Log-Sammler wie Loki/Graylog                                       |
 | `KOMPASS_TRUSTED_HEADER` | –        | SSO über Reverse Proxy, z. B. `Remote-User` (Authelia/Authentik). Nur setzen, wenn Kompass ausschließlich über diesen Proxy erreichbar ist! |
+
+### Logs & Fehlersuche
+
+```bash
+docker logs -f kompass
+```
+
+Im Log stehen u. a.: welche Dienste nicht erreichbar sind (mit Adresse und Grund, z. B. `ECONNREFUSED`, `HTTP 401`),
+fehlgeschlagene Widgets, Suchanfragen und Aktionen, Anmeldungen und Fehlversuche, Fehler in `kompass.yaml` oder Plugins –
+und **Fehler aus dem Browser** (`[browser]`), die sonst nur in der Entwicklerkonsole auftauchen würden.
+Wiederholte Fehler (ein Widget fragt alle paar Sekunden ab) werden nur beim ersten Auftreten und bei der Erholung geloggt.
+API-Keys erscheinen nie im Log. Für mehr Details `LOG_LEVEL=debug` setzen und den Container neu starten.
 
 > **Docker-Socket:** Wer dem Container nicht den kompletten Socket geben will, nutzt
 > [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy) und trägt beim Docker-Dienst `http://docker-socket-proxy:2375` als Endpunkt ein

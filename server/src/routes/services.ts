@@ -5,11 +5,23 @@ import { allIntegrations, describe, getIntegration } from '../integrations/index
 import type { Context } from '../integrations/types.ts';
 import { describeError } from '../lib/http.ts';
 import { sha256 } from '../lib/crypto.ts';
+import { FailureTracker, errorDetails, logger } from '../lib/log.ts';
+
+const widgetLog = logger('widget');
+const actionLog = logger('action');
+const proxyLog = logger('proxy');
+
+/** A TypeError without a network cause means the integration choked on unexpected data. */
+function isCodeError(err: unknown) {
+  return (err instanceof TypeError || err instanceof RangeError || err instanceof SyntaxError) && !(err as any).cause;
+}
 import type { ServiceInput } from '../services.ts';
 import type { WidgetData } from '../shared/types.ts';
 
 export const serviceRoutes = (ctx: AppContext) => async (app: FastifyInstance) => {
   const { services } = ctx;
+  const widgetFailures = new FailureTracker();
+  const proxyFailures = new FailureTracker();
 
   app.get('/integrations', { preHandler: requireUser }, async () => ({ integrations: allIntegrations().map(describe) }));
 
@@ -52,7 +64,8 @@ export const serviceRoutes = (ctx: AppContext) => async (app: FastifyInstance) =
     const existing = b.existingId ? services.get(b.existingId) : undefined;
     const config: Record<string, any> = { ...(existing?.config ?? {}) };
     for (const [k, v] of Object.entries(b.config ?? {})) if (v !== '' && v !== true && v != null) config[k] = v;
-    const status = await services.check({
+    const status = await services.check(
+      {
       id: `test-${Date.now()}`,
       type: b.type,
       name: b.name || def.name,
@@ -60,7 +73,9 @@ export const serviceRoutes = (ctx: AppContext) => async (app: FastifyInstance) =
       publicUrl: b.publicUrl ?? b.url ?? '',
       icon: '',
       config,
-    });
+      },
+      true,
+    );
     return { status };
   });
 
@@ -101,21 +116,48 @@ export const serviceRoutes = (ctx: AppContext) => async (app: FastifyInstance) =
       wctx = services.builtinContext(def);
     } else {
       const s = services.get(b.service);
-      if (!s) return reply.status(404).send({ error: 'Dienst nicht gefunden (gelöscht?)' });
+      if (!s) {
+        if (widgetFailures.update(`${b.service}:missing`, 'missing') === 'failed') widgetLog.warn(`Widget "${b.widget}" verweist auf Dienst "${b.service}", den es nicht (mehr) gibt`, { user: req.user?.username });
+        return reply.status(404).send({ error: 'Dienst nicht gefunden (gelöscht?)' });
+      }
       def = getIntegration(s.type);
-      if (!def) return reply.status(404).send({ error: `Integration „${s.type}“ nicht installiert` });
+      if (!def) {
+        if (widgetFailures.update(`${s.id}:type`, 'missing') === 'failed') widgetLog.warn(`Dienst "${s.id}": Integration "${s.type}" ist nicht installiert`);
+        return reply.status(404).send({ error: `Integration „${s.type}“ nicht installiert` });
+      }
       wctx = services.context(s);
     }
     const w = def.widgets?.[b.widget];
-    if (!w) return reply.status(404).send({ error: `Widget „${b.widget}“ gibt es nicht` });
+    if (!w) {
+      widgetLog.warn(`Widget "${b.widget}" gibt es bei ${def.name} nicht (Integration aktualisiert?)`, { service: b.service });
+      return reply.status(404).send({ error: `Widget „${b.widget}“ gibt es nicht` });
+    }
     const options = { ...Object.fromEntries((w.options ?? []).filter((o) => o.default !== undefined).map((o) => [o.key, o.default])), ...(b.options ?? {}) };
     const ttl = Math.max((w.interval ?? 60) * 1000 - 500, 1000);
     const key = `${wctx.service.id}:w:${b.widget}:${sha256(JSON.stringify(options))}`;
+    const label = `${wctx.service.name}/${w.name}`;
+    const trackKey = `${wctx.service.id}:${b.widget}`;
     try {
-      const data = await services.cache.get<WidgetData>(key, ttl, () => w.fetch(wctx, options));
+      const t0 = Date.now();
+      const data = await services.cache.get<WidgetData>(key, ttl, async () => {
+        const d = await w.fetch(wctx, options);
+        widgetLog.debug(`${label} aktualisiert`, { ms: Date.now() - t0 });
+        return d;
+      });
+      if (widgetFailures.update(trackKey, null) === 'recovered') widgetLog.info(`${label} funktioniert wieder`);
       return { data, interval: w.interval ?? 60 };
     } catch (err) {
-      return { error: describeError(err), interval: w.interval ?? 60 };
+      const message = describeError(err);
+      if (widgetFailures.update(trackKey, message) === 'failed') {
+        const details = errorDetails(err);
+        if (isCodeError(err)) {
+          widgetLog.error(`${label}: unerwartete Antwort des Dienstes – evtl. inkompatible Version`, details);
+        } else {
+          delete details.stack;
+          widgetLog.warn(`${label} fehlgeschlagen: ${message}`, details);
+        }
+      }
+      return { error: message, interval: w.interval ?? 60 };
     }
   });
 
@@ -127,14 +169,23 @@ export const serviceRoutes = (ctx: AppContext) => async (app: FastifyInstance) =
     if (!s) throw new Error('Dienst nicht gefunden');
     const def = getIntegration(s.type);
     const fn = def?.actions?.[b.action];
-    if (!fn) throw new Error(`Aktion „${b.action}“ gibt es nicht`);
+    if (!fn) {
+      actionLog.warn(`Aktion "${b.action}" gibt es bei ${s.name} nicht`, { user: req.user?.username });
+      throw new Error(`Aktion „${b.action}“ gibt es nicht`);
+    }
     const actx = services.context(s);
+    const who = req.user?.username;
     try {
       const r = (await fn(actx, b.params ?? {})) ?? { ok: true };
       // Widgets of this service should show the new state immediately.
       services.cache.delete(`${s.id}:w:`);
+      if (r.ok) actionLog.info(`${who} → ${s.name}: ${b.action}${r.message ? ` (${r.message})` : ''}`, { params: b.params });
+      else actionLog.warn(`${who} → ${s.name}: ${b.action} abgelehnt: ${r.message ?? ''}`, { params: b.params });
       return r;
     } catch (err) {
+      const details = errorDetails(err);
+      if (!isCodeError(err)) delete details.stack;
+      actionLog.error(`${who} → ${s.name}: ${b.action} fehlgeschlagen`, { ...details, params: b.params });
       return { ok: false, message: describeError(err) };
     }
   });
@@ -151,11 +202,14 @@ export const serviceRoutes = (ctx: AppContext) => async (app: FastifyInstance) =
       const type = res.headers.get('content-type') ?? '';
       if (!res.ok || !type.startsWith('image/')) {
         await res.body?.cancel();
+        const why = res.ok ? `kein Bild (${type || 'ohne Content-Type'})` : `HTTP ${res.status}`;
+        if (proxyFailures.update(`${s.id}:${res.status}`, why) === 'failed') proxyLog.warn(`Bild von ${s.name} nicht ladbar: ${why}`, { path: path.split('?')[0] });
         return reply.status(res.ok ? 415 : res.status).send();
       }
       reply.header('Content-Type', type).header('Cache-Control', 'private, max-age=86400');
       return reply.send(Buffer.from(await res.arrayBuffer()));
-    } catch {
+    } catch (err) {
+      if (proxyFailures.update(`${s.id}:net`, describeError(err)) === 'failed') proxyLog.warn(`Bild von ${s.name} nicht ladbar: ${describeError(err)}`, { path: path.split('?')[0] });
       return reply.status(502).send();
     }
   });

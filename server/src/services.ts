@@ -6,6 +6,9 @@ import { HttpClient, describeError, joinUrl } from './lib/http.ts';
 import { TtlCache } from './lib/cache.ts';
 import type { SecretBox } from './lib/crypto.ts';
 import type { ServicePublic, ServiceStatus } from './shared/types.ts';
+import { FailureTracker, errorDetails, logger } from './lib/log.ts';
+
+const log = logger('health');
 
 const RESERVED = new Set(['id', 'type', 'name', 'url', 'publicUrl', 'icon', 'sort']);
 
@@ -148,6 +151,7 @@ export class ServiceManager {
     this.db
       .prepare('INSERT INTO services (id, type, name, url, public_url, icon, config, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
       .run(id, input.type, input.name.trim(), input.url?.trim() ?? '', input.publicUrl?.trim() ?? '', input.icon?.trim() ?? '', JSON.stringify(config), sort);
+    logger('services').info(`Dienst angelegt: ${input.name.trim()} (${id}, ${input.type})`, { url: input.url });
     return this.toPublic(this.list().find((s) => s.id === id)!);
   }
 
@@ -160,6 +164,8 @@ export class ServiceManager {
       .prepare('UPDATE services SET name = ?, url = ?, public_url = ?, icon = ?, config = ? WHERE id = ?')
       .run(input.name.trim(), input.url?.trim() ?? '', input.publicUrl?.trim() ?? '', input.icon?.trim() ?? '', JSON.stringify(config), id);
     this.invalidate(id);
+    this.health.forget(id);
+    logger('services').info(`Dienst geändert: ${input.name.trim()} (${id})`, { url: input.url });
     return this.toPublic(this.list().find((s) => s.id === id)!);
   }
 
@@ -168,6 +174,8 @@ export class ServiceManager {
     this.db.prepare('DELETE FROM services WHERE id = ?').run(id);
     this.invalidate(id);
     this.status.delete(id);
+    this.health.forget(id);
+    logger('services').info(`Dienst gelöscht: ${id}`);
   }
 
   reorder(ids: string[]) {
@@ -236,9 +244,16 @@ export class ServiceManager {
 
   // ---------- health ----------
 
-  async check(service: ServiceInstance): Promise<ServiceStatus> {
+  private health = new FailureTracker();
+
+  /** Health check. `test` = connection test from the service form (not stored). */
+  async check(service: ServiceInstance, test = false): Promise<ServiceStatus> {
     const def = getIntegration(service.type);
+    if (!def && this.health.update(`${service.id}:type`, 'missing') === 'failed') {
+      log.warn(`Dienst "${service.id}": Integration "${service.type}" ist nicht installiert (Tippfehler in kompass.yaml oder Plugin fehlt?)`);
+    }
     const ctx = this.context(service);
+    let details: Record<string, unknown> | undefined;
     const t0 = Date.now();
     let st: ServiceStatus;
     try {
@@ -252,7 +267,18 @@ export class ServiceManager {
       st = { ok: r ? r.ok : true, message: r ? r.message : undefined, ms: Date.now() - t0, checkedAt: Date.now() };
     } catch (err) {
       st = { ok: false, message: describeError(err), ms: Date.now() - t0, checkedAt: Date.now() };
+      details = errorDetails(err);
+      delete details.stack;
     }
+    const label = `${service.name} (${service.id}, ${service.type})`;
+    if (test) {
+      if (st.ok) log.info(`Verbindungstest erfolgreich: ${service.name} (${service.type})`, { url: service.url, ms: st.ms });
+      else log.warn(`Verbindungstest fehlgeschlagen: ${service.name} (${service.type}): ${st.message}`, { ...details, configured: service.url });
+      return st;
+    }
+    const change = this.health.update(service.id, st.ok ? null : (st.message ?? 'offline'));
+    if (change === 'failed') log.warn(`${label} ist nicht erreichbar: ${st.message}`, { ...details, configured: service.url || service.config.endpoint });
+    else if (change === 'recovered') log.info(`${label} ist wieder erreichbar`, { ms: st.ms });
     this.status.set(service.id, st);
     return st;
   }
@@ -262,7 +288,16 @@ export class ServiceManager {
   }
 
   startHealthChecks(intervalMs = 60_000) {
-    const run = () => Promise.allSettled(this.list().map((s) => this.check(s)));
+    let first = true;
+    const run = async () => {
+      const list = this.list();
+      const results = await Promise.allSettled(list.map((s) => this.check(s)));
+      if (first) {
+        first = false;
+        const ok = results.filter((r) => r.status === 'fulfilled' && r.value.ok).length;
+        log.info(`Erster Health-Check: ${ok} von ${list.length} Diensten erreichbar`);
+      }
+    };
     run();
     this.timer = setInterval(run, intervalMs);
     this.timer.unref();
