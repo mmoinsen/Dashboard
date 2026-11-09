@@ -100,14 +100,17 @@ test('services: secrets are stored encrypted and never returned', async () => {
   await app.close();
 });
 
-test('AI search: disabled by default, key is stored but never returned', async () => {
+test('AI search: claude.ai mode by default, API key is stored but never returned', async () => {
   const app = await setup();
   const r0 = await app.inject({ method: 'POST', url: '/api/auth/setup', payload: { username: 'admin', password: 'geheim123' } });
   const cookie = cookieOf(r0);
-  let r = await app.inject({ method: 'POST', url: '/api/ai/ask', headers: { cookie }, payload: { question: 'hallo' } });
-  assert.equal(r.statusCode, 403, 'not enabled yet');
+  let r = await app.inject({ url: '/api/bootstrap', headers: { cookie } });
+  assert.equal(r.json().ai.mode, 'website', 'works with an existing Claude plan out of the box');
+  assert.equal(r.json().ai.available, false);
+  r = await app.inject({ method: 'POST', url: '/api/ai/ask', headers: { cookie }, payload: { question: 'hallo' } });
+  assert.equal(r.statusCode, 403, 'no API calls in website mode');
 
-  r = await app.inject({ method: 'PUT', url: '/api/ai/settings', headers: { cookie }, payload: { ai: { enabled: true, apiKey: 'sk-ant-supersecret', model: 'claude-opus-5-5' } } });
+  r = await app.inject({ method: 'PUT', url: '/api/ai/settings', headers: { cookie }, payload: { ai: { mode: 'api', apiKey: 'sk-ant-supersecret', model: 'claude-opus-5-5' } } });
   assert.equal(r.json().ai.hasKey, true);
   assert.equal(r.json().ai.keySource, 'ui');
   assert.ok(!r.body.includes('supersecret'));

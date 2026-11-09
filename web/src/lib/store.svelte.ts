@@ -12,8 +12,8 @@ interface AppState {
   status: Record<string, ServiceStatus>;
   dashboard: Dashboard | null;
   configError: string | null;
-  /** KI-Suche: available = enabled by an admin and an API key is set. */
-  ai: { available: boolean; model: string } | null;
+  /** KI-Suche: mode chosen by the admin; available = API mode with a key (inline answers). */
+  ai: { mode: 'off' | 'website' | 'api'; available: boolean; model: string } | null;
   editing: boolean;
   searchOpen: boolean;
   searchSeed: string;

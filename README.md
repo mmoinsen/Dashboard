@@ -7,7 +7,7 @@ die fehlende Fortsetzung direkt zu Radarr hinzufügen – oder doch einfach goog
 Home-Assistant-Lampen direkt in der Ergebnisliste.
 
 - **Omni-Suche** (`Ctrl K`, `/` oder einfach lostippen): Dienste, Medien, Smart Home, Container, Torrents, Rechner, URLs und Web in einer Liste
-- **KI-Suche mit Claude** (optional, eigener Anthropic-API-Key): „Claude fragen“ direkt in der Suche oder mit `!ai` – mit deinen Diensten und Suchtreffern als Kontext
+- **„Claude fragen“** in der Suche oder mit `!ai`: öffnet claude.ai mit deinem bestehenden Claude-Abo (Standard, keine Zusatzkosten) – oder antwortet direkt in der Suche, wenn du einen Anthropic-API-Key hinterlegst
 - **30 Integrationen** und ein Plugin-System, das ohne Neubau des Images erweiterbar ist
 - **Frei anordnen**: Widgets per Drag & Drop an jede Stelle eines 12-Spalten-Rasters ziehen und in der Breite ziehen – ohne Lücken zwischen den Reihen
 - **Detailansicht** für jedes Widget (z. B. alle Torrents mit Geschwindigkeitsverlauf, alle Home-Assistant-Geräte nach Bereich)
@@ -50,13 +50,18 @@ services:
       - TZ=Europe/Berlin
 ```
 
-### KI-Suche (optional)
+### KI-Suche (Claude)
 
-Unter **Allgemein → KI-Suche (Claude)** aktivieren und einen [Anthropic-API-Key](https://console.anthropic.com) eintragen (oder `ANTHROPIC_API_KEY`
-im Container setzen). Standardmodell ist Claude Opus 5.5, wählbar sind auch Sonnet 5.5 und Haiku 5.5; die Antworttiefe ist einstellbar.
-Anfragen gehen **nur** an Anthropic, wenn jemand ausdrücklich „Claude fragen“ wählt. Auf Wunsch sieht Claude dabei die Namen und den
-Online-Status deiner Dienste sowie die Treffer der Dashboard-Suche (keine API-Keys, keine Adressen). Für Opus/Sonnet ist der
-serverseitige Fallback bei Ablehnungen (`fallbacks: "default"`) aktiv.
+Unter **Allgemein → KI-Suche (Claude)** gibt es drei Modi:
+
+- **claude.ai (Standard):** „Claude fragen“ öffnet claude.ai in einem neuen Tab und füllt die Frage vor (sie liegt zusätzlich in der
+  Zwischenablage). Du nutzt dein bestehendes Claude-Abo, es entstehen keine Zusatzkosten. Ein Abo (Free/Pro/Max) direkt in Kompass
+  einzubinden ist nach den Nutzungsbedingungen von Anthropic nicht erlaubt – deshalb die Weiterleitung.
+- **API:** Claude antwortet direkt im Suchfenster. Braucht einen [Anthropic-API-Key](https://console.anthropic.com) (oder
+  `ANTHROPIC_API_KEY` im Container) und wird pro Anfrage abgerechnet. Standardmodell Claude Opus 5.5, wählbar auch Sonnet 5.5 und
+  Haiku 5.5; Antworttiefe einstellbar. Auf Wunsch sieht Claude die Namen und den Online-Status deiner Dienste sowie die Suchtreffer
+  (keine API-Keys, keine Adressen). Für Opus/Sonnet ist der serverseitige Fallback bei Ablehnungen (`fallbacks: "default"`) aktiv.
+- **Aus.**
 
 Alles, was erhalten bleiben soll, liegt in `/config`: Datenbank (`kompass.db`), Schlüssel für Geheimnisse (`secret.key`),
 optional `kompass.yaml`, Plugins (`plugins/`) und der Icon-Cache.
@@ -100,7 +105,7 @@ API-Keys erscheinen nie im Log. Für mehr Details `LOG_LEVEL=debug` setzen und d
 | `12*7`                   | Rechner                                                          |
 | `192.168.1.1`            | Adresse öffnen                                                   |
 
-`!ai …` (oder `!claude`, `!ki`) fragt Claude, sofern die KI-Suche eingerichtet ist.
+`!ai …` (oder `!claude`, `!ki`) fragt Claude – je nach Einstellung auf claude.ai oder direkt in der Suche.
 
 `↑ ↓` wählen, `Enter` öffnet/schaltet (die ausgewählte Zeile zeigt, was passiert), `Ctrl Enter` sucht immer direkt im Web, `Shift Enter` öffnet in neuem Tab, `!` zeigt alle Präfixe.
 Suchmaschinen und Präfixe sind unter **Allgemein** anpassbar, jeder Benutzer kann seine Standard-Suchmaschine wählen.

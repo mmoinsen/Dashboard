@@ -16,7 +16,16 @@ export const AI_MODELS = [
 
 export type AiEffort = 'low' | 'medium' | 'high';
 
+/**
+ * off      – no Claude in the search
+ * website  – "Claude fragen" opens claude.ai with the question (uses the person's own plan, no API key)
+ * api      – answer inline via the Anthropic API (needs an API key, billed per use)
+ */
+export type AiMode = 'off' | 'website' | 'api';
+
 interface AiSettingsStored {
+  mode?: AiMode;
+  /** legacy flag from before `mode` existed: true = api */
   enabled: boolean;
   model: string;
   effort: AiEffort;
@@ -27,6 +36,7 @@ interface AiSettingsStored {
 }
 
 export interface AiSettingsPublic {
+  mode: AiMode;
   enabled: boolean;
   model: string;
   effort: AiEffort;
@@ -39,14 +49,16 @@ export interface AiSettingsPublic {
 
 const DEFAULTS: AiSettingsStored = { enabled: false, model: 'claude-opus-5-5', effort: 'low', includeContext: true };
 
-function stored(ctx: AppContext): AiSettingsStored {
-  return { ...DEFAULTS, ...(getSetting<Partial<AiSettingsStored>>(ctx.db, 'ai') ?? {}) };
+function stored(ctx: AppContext): AiSettingsStored & { mode: AiMode } {
+  const s = { ...DEFAULTS, ...(getSetting<Partial<AiSettingsStored>>(ctx.db, 'ai') ?? {}) };
+  // Default: claude.ai – works with an existing Claude plan and costs nothing extra.
+  return { ...s, mode: s.mode ?? (s.enabled ? 'api' : 'website') };
 }
 
 export function aiPublic(ctx: AppContext): AiSettingsPublic {
   const s = stored(ctx);
   const keySource = s.apiKey ? 'ui' : process.env.ANTHROPIC_API_KEY ? 'env' : null;
-  return { enabled: s.enabled, model: s.model, effort: s.effort, includeContext: s.includeContext, hasKey: !!keySource, keySource, models: [...AI_MODELS] };
+  return { mode: s.mode, enabled: s.mode === 'api', model: s.model, effort: s.effort, includeContext: s.includeContext, hasKey: !!keySource, keySource, models: [...AI_MODELS] };
 }
 
 /** Server-side refusal fallback exists for Opus 5.5 and Sonnet 5.5, not for Haiku 5.5. */
@@ -107,7 +119,9 @@ export const aiRoutes = (ctx: AppContext) => async (app: FastifyInstance) => {
   app.put('/ai/settings', { preHandler: requireAdmin }, async (req) => {
     const b = ((req.body as any)?.ai ?? {}) as Record<string, unknown>;
     const next = stored(ctx);
-    if (typeof b.enabled === 'boolean') next.enabled = b.enabled;
+    if (b.mode === 'off' || b.mode === 'website' || b.mode === 'api') next.mode = b.mode;
+    else if (typeof b.enabled === 'boolean') next.mode = b.enabled ? 'api' : 'off';
+    next.enabled = next.mode === 'api';
     if (typeof b.model === 'string' && AI_MODELS.some((m) => m.id === b.model)) next.model = b.model;
     if (b.effort === 'low' || b.effort === 'medium' || b.effort === 'high') next.effort = b.effort;
     if (typeof b.includeContext === 'boolean') next.includeContext = b.includeContext;
@@ -115,7 +129,7 @@ export const aiRoutes = (ctx: AppContext) => async (app: FastifyInstance) => {
     if (b.apiKey === false) delete next.apiKey;
     else if (typeof b.apiKey === 'string' && b.apiKey.trim()) next.apiKey = ctx.secrets.encrypt(b.apiKey.trim());
     setSetting(ctx.db, 'ai', next);
-    log.info(`KI-Suche ${next.enabled ? 'aktiviert' : 'deaktiviert'} von "${req.user!.username}"`, { model: next.model, effort: next.effort, key: next.apiKey ? 'ui' : 'env' });
+    log.info(`KI-Suche auf "${next.mode}" gestellt von "${req.user!.username}"`, { model: next.model, effort: next.effort, key: next.apiKey ? 'ui' : process.env.ANTHROPIC_API_KEY ? 'env' : 'keiner' });
     return { ai: aiPublic(ctx) };
   });
 
@@ -124,7 +138,7 @@ export const aiRoutes = (ctx: AppContext) => async (app: FastifyInstance) => {
     const s = stored(ctx);
     const body = (req.body ?? {}) as { question?: unknown; hits?: unknown };
     const question = String(body.question ?? '').trim().slice(0, 2000);
-    if (!s.enabled) return reply.status(403).send({ error: 'Die KI-Suche ist nicht aktiviert.' });
+    if (s.mode !== 'api') return reply.status(403).send({ error: 'Die Antwort per API ist nicht aktiviert.' });
     if (!question) return reply.status(400).send({ error: 'Frage fehlt.' });
     const apiKey = s.apiKey ? ctx.secrets.decrypt(s.apiKey) : undefined;
     if (!apiKey && !process.env.ANTHROPIC_API_KEY) return reply.status(400).send({ error: 'Kein API-Key hinterlegt – Einstellungen → Allgemein → KI-Suche.' });

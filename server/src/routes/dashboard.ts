@@ -91,7 +91,7 @@ export const dashboardRoutes = (ctx: AppContext) => async (app: FastifyInstance)
     // only what the search needs; admins load the full AI settings separately
     ai: (() => {
       const a = aiPublic(ctx);
-      return { available: a.enabled && a.hasKey, model: a.model };
+      return { mode: a.mode, available: a.mode === 'api' && a.hasKey, model: a.model };
     })(),
   }));
 

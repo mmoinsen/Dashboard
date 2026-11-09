@@ -43,7 +43,19 @@
   const engines = $derived(app.settings?.search.engines ?? []);
   const engine = $derived(engines.find((e) => e.id === (app.user?.settings.searchEngine ?? app.settings?.search.defaultEngine)) ?? engines[0]);
   const webBang = $derived(parsed.bang ? engines.find((e) => e.bang === parsed.bang) : undefined);
-  const aiAvailable = $derived(Boolean(app.ai?.available));
+  /** 'website' = open claude.ai with the person's own plan; 'api' = inline answer (needs a key). */
+  const aiMode = $derived(app.ai?.mode ?? 'website');
+  const aiAvailable = $derived(aiMode === 'api' && Boolean(app.ai?.available));
+  const aiOffered = $derived(aiMode !== 'off');
+
+  /** Opens a new claude.ai chat with the question. The `q` link parameter is not officially documented,
+   *  so the question also goes to the clipboard in case the field stays empty. */
+  function askOnClaudeWeb(question: string) {
+    window.open(`https://claude.ai/new?q=${encodeURIComponent(question)}`, '_blank', 'noopener');
+    copyText(question).then((ok) =>
+      toast(ok ? 'claude.ai geöffnet – die Frage ist auch in der Zwischenablage (Strg+V), falls das Feld leer ist.' : 'claude.ai geöffnet', 'ok'),
+    );
+  }
   const aiBang = $derived(Boolean(parsed.bang && AI_BANGS.includes(parsed.bang)));
   const homelabBang = $derived.by(() => {
     const b = parsed.bang;
@@ -127,7 +139,7 @@
       ...engines.map((e) => ({ bang: e.bang, label: e.name, icon: e.icon })),
       ...app.integrations.filter((i) => i.bang && app.services.some((s) => s.type === i.id)).map((i) => ({ bang: i.bang!, label: i.name, icon: i.icon })),
       ...Object.entries(CATEGORY_BANGS).map(([bang, c]) => ({ bang, label: `Alle ${c.label}-Dienste` })),
-      ...(aiAvailable ? [{ bang: 'ai', label: 'Claude fragen' }] : []),
+      ...(aiOffered ? [{ bang: 'ai', label: aiMode === 'website' ? 'Claude auf claude.ai fragen' : 'Claude fragen' }] : []),
     ];
     return list
       .filter((b) => b.bang.startsWith(partial))
@@ -162,23 +174,36 @@
     const out: Item[] = [];
     if (!text) return out;
 
-    const askClaude = (score: number): Item => ({
-      id: 'ai:ask',
-      title: `Claude fragen: „${text}“`,
-      subtitle: aiAvailable ? 'Antwort direkt hier – mit deinen Diensten als Kontext' : 'KI-Suche ist nicht eingerichtet (Einstellungen → Allgemein)',
-      glyph: 'zap',
-      group: 'KI',
-      kind: 'command',
-      score,
-      hint: '↵ fragen',
-      exec: () => {
-        if (aiAvailable) aiQuestion = text;
-        else toast('Die KI-Suche ist noch nicht eingerichtet – ein Admin kann sie unter Einstellungen → Allgemein aktivieren.', 'bad');
-      },
-    });
+    const askClaude = (score: number): Item =>
+      aiMode === 'website'
+        ? {
+            id: 'ai:web',
+            title: `Claude fragen: „${text}“`,
+            subtitle: 'Öffnet claude.ai in einem neuen Tab – mit deinem Claude-Abo, ohne API-Kosten',
+            glyph: 'zap',
+            group: 'KI',
+            kind: 'command',
+            score,
+            hint: '↵ claude.ai',
+            exec: () => askOnClaudeWeb(text),
+          }
+        : {
+            id: 'ai:ask',
+            title: `Claude fragen: „${text}“`,
+            subtitle: aiAvailable ? 'Antwort direkt hier – mit deinen Diensten als Kontext' : 'API-Key fehlt (Einstellungen → Allgemein → KI-Suche)',
+            glyph: 'zap',
+            group: 'KI',
+            kind: 'command',
+            score,
+            hint: '↵ fragen',
+            exec: () => {
+              if (aiAvailable) aiQuestion = text;
+              else toast('Für Antworten direkt in der Suche fehlt ein API-Key – oder unter Einstellungen auf „claude.ai“ umstellen.', 'bad');
+            },
+          };
 
     // AI-only mode ("!ai wie funktioniert ...")
-    if (aiBang) return [askClaude(1)];
+    if (aiBang) return aiOffered ? [askClaude(1)] : [];
 
     // Web-only mode ("!g katzen")
     if (webBang) {
@@ -229,7 +254,7 @@
       if (!homelabBang) suggestions.slice(0, 4).forEach((s, i) => out.push({ id: `web:s:${s}`, title: s, group: 'Web', kind: 'web', score: w - 0.02 - i * 0.005, glyph: 'search', exec: () => webSearch(s) }));
     }
     // Claude: right below the web search for questions, otherwise further down.
-    if (aiAvailable && !homelabBang && text.length >= 3) out.push(askClaude(webIntent(text) >= 0.6 ? w - 0.01 : 0.3));
+    if (aiOffered && !homelabBang && text.length >= 3) out.push(askClaude(webIntent(text) >= 0.6 ? w - 0.01 : 0.3));
     return out;
   });
 
@@ -439,7 +464,7 @@
               <span><span class="kbd">!m</span> alle Mediendienste</span>
               <span><span class="kbd">&gt;</span> Befehle</span>
               <span><span class="kbd">Ctrl&nbsp;↵</span> direkt ins Web</span>
-              {#if aiAvailable}<span><span class="kbd">!ai</span> Claude fragen</span>{/if}
+              {#if aiOffered}<span><span class="kbd">!ai</span> Claude fragen</span>{/if}
             </div>
           </div>
         {/if}
