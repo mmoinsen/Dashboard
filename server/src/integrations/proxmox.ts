@@ -3,7 +3,10 @@ import type { Context } from './types.ts';
 import { HttpError } from '../lib/http.ts';
 import { bytes, duration, num, percent } from '../lib/format.ts';
 import { bestScore } from '../lib/match.ts';
-import type { ActionRef, BarItem, ListItem, SearchResult, Tone } from '../shared/types.ts';
+import type { ActionRef, BarItem, Block, ListItem, SearchResult, Tone } from '../shared/types.ts';
+import { logger } from '../lib/log.ts';
+
+const log = logger('proxmox');
 
 /** One entry of /cluster/resources (fields depend on the type). */
 interface Resource {
@@ -71,11 +74,60 @@ function nodeBars(nodes: Resource[]): BarItem[] {
   return nodes.flatMap((n) =>
     n.status !== 'online'
       ? [{ label: `${n.node} · offline`, value: '–', percent: 0, tone: 'bad' as Tone }]
-      : [
+      : n.maxcpu == null
+        ? [] // no Sys.Audit: Proxmox hides usage – explained by permissionHint()
+        : [
           { label: `${n.node} · CPU`, value: `${num((n.cpu ?? 0) * 100, 0)} % von ${n.maxcpu ?? '?'} Kernen`, percent: (n.cpu ?? 0) * 100, tone: level((n.cpu ?? 0) * 100) },
           { label: `${n.node} · RAM`, value: `${bytes(n.mem)} / ${bytes(n.maxmem)}`, percent: pct(n.mem, n.maxmem), tone: level(pct(n.mem, n.maxmem)) },
         ],
   );
+}
+
+/**
+ * Proxmox silently hides what a token may not see: nodes come without CPU/RAM (no Sys.Audit)
+ * and VMs/containers are missing entirely (no VM.Audit). Detect that and explain the fix,
+ * instead of showing empty values.
+ */
+async function permissionHint(ctx: Context, all: Resource[]): Promise<Block[]> {
+  const nodes = all.filter((r) => r.type === 'node');
+  const nodesWithoutStats = nodes.some((n) => n.status === 'online' && n.maxcpu == null);
+  const noGuests = !all.some((r) => r.type === 'qemu' || r.type === 'lxc');
+  if (!nodesWithoutStats && !noGuests) return [];
+
+  const perms = await ctx.cache
+    .get(`${ctx.service.id}:perms`, 60_000, async () => (await ctx.http.get<{ data: Record<string, Record<string, number>> }>('/api2/json/access/permissions')).data)
+    .catch(() => null);
+  const has = (priv: string, paths: (p: string) => boolean) => !!perms && Object.entries(perms).some(([path, privs]) => paths(path) && privs?.[priv]);
+  const sysAudit = perms ? has('Sys.Audit', (p) => p === '/' || p === '/nodes' || p.startsWith('/nodes/')) : !nodesWithoutStats;
+  const vmAudit = perms ? has('VM.Audit', (p) => p === '/' || p === '/vms' || p.startsWith('/vms/') || p.startsWith('/pool/')) : !noGuests;
+
+  const missing: string[] = [];
+  if (nodesWithoutStats && !sysAudit) missing.push('Sys.Audit – CPU, RAM und Laufzeit der Nodes');
+  if (noGuests && !vmAudit) missing.push('VM.Audit – VMs und Container');
+  if (!missing.length) return [];
+
+  if (!ctx.state.permWarned) {
+    ctx.state.permWarned = true;
+    log.warn(`API-Token "${ctx.service.config.tokenId}" fehlen Rechte: ${missing.map((m) => m.split(' ')[0]).join(', ')} – Proxmox liefert deshalb kaum Daten`, { service: ctx.service.id });
+  }
+  const token = ctx.service.config.tokenId || 'dein Token';
+  return [
+    { type: 'text', tone: 'warn', text: 'Dem API-Token fehlen Leserechte – Proxmox blendet deshalb Werte aus.' },
+    {
+      type: 'list',
+      items: [
+        ...missing.map((m) => ({ title: `Fehlt: ${m}`, status: 'warn' as Tone })),
+        {
+          title: 'So beheben',
+          subtitle: `Proxmox → Datacenter → Berechtigungen → Hinzufügen → „API-Token-Berechtigung“: Pfad „/“, API-Token „${token}“, Rolle „PVEAuditor“, „Weitergeben“ anhaken. Für Start/Stopp zusätzlich Rolle „PVEVMUser“.`,
+        },
+        {
+          title: 'Hinweis zur Privilegientrennung',
+          subtitle: 'Ist beim Token „Privilegientrennung“ aktiv, zählen nur Rechte, die dem Token selbst zugewiesen sind – Rechte des Benutzers reichen dann nicht.',
+        },
+      ],
+    },
+  ];
 }
 
 function overviewBlocks(all: Resource[]) {
@@ -129,10 +181,11 @@ export default defineIntegration({
   bang: 'pve',
   urlPlaceholder: 'https://192.168.1.10:8006',
   urlHelp:
-    'Adresse der Proxmox-Weboberfläche inkl. Port 8006 (immer https – http:// wird automatisch umgestellt). Proxmox nutzt meist ein selbstsigniertes Zertifikat, deshalb ist „TLS-Zertifikat nicht prüfen“ vorausgewählt.',
+    'Adresse der Proxmox-Weboberfläche inkl. Port 8006 (dort immer https – http:// wird automatisch umgestellt). Proxmox nutzt meist ein selbstsigniertes Zertifikat, deshalb ist „TLS-Zertifikat nicht prüfen“ vorausgewählt.',
   defaultInsecure: true,
-  // pveproxy on 8006 only speaks HTTPS; an http:// URL would just bounce to https
-  connection: (service) => ({ baseUrl: service.url.replace(/^http:\/\//i, 'https://') }),
+  // pveproxy on port 8006 only speaks HTTPS – upgrade http:// there. Other ports (e.g. a reverse
+  // proxy serving plain HTTP) are left alone.
+  connection: (service) => ({ baseUrl: /^http:\/\/[^/]+:8006(\/|$)/i.test(service.url) ? service.url.replace(/^http:/i, 'https:') : service.url }),
   fields: [
     {
       key: 'tokenId',
@@ -157,8 +210,10 @@ export default defineIntegration({
       description: 'Nodes mit CPU/RAM, laufende VMs und Container',
       interval: 15,
       async fetch(ctx) {
-        const o = overviewBlocks(await resources(ctx));
-        return { summary: o.summary, status: o.status, blocks: o.blocks };
+        const all = await resources(ctx);
+        const o = overviewBlocks(all);
+        const hint = await permissionHint(ctx, all);
+        return hint.length ? { summary: 'Berechtigung fehlt', status: 'warn', blocks: [...o.blocks.slice(0, 1), ...hint] } : { summary: o.summary, status: o.status, blocks: o.blocks };
       },
       async detail(ctx) {
         return proxmoxDetail(ctx);
@@ -184,7 +239,10 @@ export default defineIntegration({
         { key: 'runningFirst', label: 'Laufende zuerst', type: 'boolean', default: true },
       ],
       async fetch(ctx, o) {
-        let guests = (await resources(ctx)).filter(isGuest);
+        const all = await resources(ctx);
+        const hint = await permissionHint(ctx, all);
+        if (hint.length) return { summary: 'Berechtigung fehlt', status: 'warn', blocks: hint };
+        let guests = all.filter(isGuest);
         if (o.kind === 'qemu' || o.kind === 'lxc') guests = guests.filter((g) => g.type === o.kind);
         guests.sort((a, b) => (o.runningFirst !== false ? Number(b.status === 'running') - Number(a.status === 'running') : 0) || (a.vmid ?? 0) - (b.vmid ?? 0));
         const running = guests.filter((g) => g.status === 'running').length;
@@ -245,6 +303,8 @@ export default defineIntegration({
 async function proxmoxDetail(ctx: Context) {
   const all = await resources(ctx, true);
   const o = overviewBlocks(all);
+  const hint = await permissionHint(ctx, all);
+  if (hint.length) return { summary: 'Berechtigung fehlt', status: 'warn' as Tone, blocks: [...o.blocks.slice(0, 1), ...hint] };
   const guests = all.filter(isGuest).sort((a, b) => Number(b.status === 'running') - Number(a.status === 'running') || (a.vmid ?? 0) - (b.vmid ?? 0));
   // shared storage shows up once per node – keep one entry
   const seen = new Set<string>();

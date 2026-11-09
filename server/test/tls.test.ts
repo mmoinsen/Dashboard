@@ -26,7 +26,7 @@ try {
   hasOpenssl = false;
 }
 
-test('connection test honours "TLS-Zertifikat nicht prüfen" (self-signed Proxmox, http:// URL)', { skip: !hasOpenssl && 'openssl not installed' }, async () => {
+test('connection test honours "TLS-Zertifikat nicht prüfen" (self-signed Proxmox)', { skip: !hasOpenssl && 'openssl not installed' }, async () => {
   const pve = await selfSignedServer();
   const dir = mkdtempSync(join(tmpdir(), 'kompass-api-'));
   writeFileSync(join(dir, 'kompass.yaml'), '');
@@ -34,14 +34,14 @@ test('connection test honours "TLS-Zertifikat nicht prüfen" (self-signed Proxmo
   try {
   const setup = await app.inject({ method: 'POST', url: '/api/auth/setup', payload: { username: 'admin', password: 'geheim123' } });
   const cookie = String(setup.headers['set-cookie']).split(';')[0];
-  const base = { type: 'proxmox', name: 'Proxmox', url: `http://127.0.0.1:${pve.port}` };
+  const base = { type: 'proxmox', name: 'Proxmox', url: `https://127.0.0.1:${pve.port}` };
 
   // without the option: rejected, with a message that says what to do
   let r = await app.inject({ method: 'POST', url: '/api/services/test', headers: { cookie }, payload: { ...base, config: { tokenId: 'k@pve!d', tokenSecret: 'x', insecure: false } } });
   assert.equal(r.json().status.ok, false);
   assert.match(r.json().status.message, /TLS-Zertifikat nicht prüfen/);
 
-  // with the option (sent as boolean true by the form): works, and http:// was upgraded to https://
+  // with the option (sent as boolean true by the form): works
   r = await app.inject({ method: 'POST', url: '/api/services/test', headers: { cookie }, payload: { ...base, config: { tokenId: 'k@pve!d', tokenSecret: 'x', insecure: true } } });
   assert.equal(r.json().status.ok, true, r.json().status.message);
 
@@ -54,4 +54,13 @@ test('connection test honours "TLS-Zertifikat nicht prüfen" (self-signed Proxmo
     await app.close();
     pve.close();
   }
+});
+
+test('Proxmox: http:// is upgraded to https:// only on port 8006', async () => {
+  const { default: proxmox } = await import('../src/integrations/proxmox.ts');
+  const conn = (url: string) => proxmox.connection!({ id: 'p', type: 'proxmox', name: 'p', url, publicUrl: url, icon: '', config: {} }).baseUrl;
+  assert.equal(conn('http://192.168.178.123:8006'), 'https://192.168.178.123:8006');
+  assert.equal(conn('http://pve.local:8006/'), 'https://pve.local:8006/');
+  assert.equal(conn('http://pve.local'), 'http://pve.local', 'reverse proxy on plain HTTP stays as configured');
+  assert.equal(conn('https://pve.local:8006'), 'https://pve.local:8006');
 });
