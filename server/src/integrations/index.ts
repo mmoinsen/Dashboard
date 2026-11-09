@@ -120,6 +120,7 @@ export function describe(def: IntegrationDef): IntegrationInfo {
     website: def.website,
     urlPlaceholder: def.urlPlaceholder,
     urlHelp: def.urlHelp,
+    defaultInsecure: def.defaultInsecure,
     fields: def.fields ?? [],
     widgets: Object.entries(def.widgets ?? {}).map(([id, w]) => ({
       id,

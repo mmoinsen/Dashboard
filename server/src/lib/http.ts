@@ -154,6 +154,12 @@ export function describeError(err: unknown): string {
   }
   if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return 'Host nicht gefunden';
   if (code === 'ENOENT') return 'Socket nicht gefunden';
-  if (typeof code === 'string' && code.includes('CERT')) return 'TLS-Zertifikat ungültig (Option „TLS ignorieren“)';
+  const TLS_CODES = ['UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'SELF_SIGNED_CERT_IN_CHAIN', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'UNABLE_TO_GET_ISSUER_CERT'];
+  if (typeof code === 'string' && (TLS_CODES.includes(code) || code.includes('CERT'))) {
+    if (code === 'CERT_HAS_EXPIRED') return 'TLS-Zertifikat abgelaufen – Zertifikat erneuern oder „TLS-Zertifikat nicht prüfen“ aktivieren';
+    if (code.includes('ALTNAME')) return 'TLS-Zertifikat passt nicht zur Adresse – Hostnamen statt IP verwenden oder „TLS-Zertifikat nicht prüfen“ aktivieren';
+    return 'Selbstsigniertes TLS-Zertifikat – beim Dienst „TLS-Zertifikat nicht prüfen“ aktivieren';
+  }
+  if (code === 'ECONNRESET' || code === 'UND_ERR_SOCKET') return 'Verbindung abgebrochen – spricht der Dienst HTTPS? Dann https:// statt http:// verwenden';
   return e?.message ?? String(err);
 }

@@ -169,6 +169,7 @@ export interface IntegrationInfo {
   website?: string;
   urlPlaceholder?: string;
   urlHelp?: string;
+  defaultInsecure?: boolean;
   fields: FieldDef[];
   widgets: WidgetInfo[];
   searchable: boolean;

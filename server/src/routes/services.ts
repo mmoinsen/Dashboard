@@ -83,7 +83,14 @@ export const serviceRoutes = (ctx: AppContext) => async (app: FastifyInstance) =
     if (!def) throw new Error('Unbekannter Diensttyp');
     const existing = b.existingId ? services.get(b.existingId) : undefined;
     const config: Record<string, any> = { ...(existing?.config ?? {}) };
-    for (const [k, v] of Object.entries(b.config ?? {})) if (v !== '' && v !== true && v != null) config[k] = v;
+    // Secret fields come back as `true` ("is set") or '' ("keep") – then reuse the stored value.
+    // Every other value is taken as entered, including booleans like `insecure: true`.
+    const secret = new Set((def.fields ?? []).filter((f) => f.type === 'secret').map((f) => f.key));
+    for (const [k, v] of Object.entries(b.config ?? {})) {
+      if (secret.has(k) && (v === '' || v === true || v == null)) continue;
+      if (v === '' || v == null) delete config[k];
+      else config[k] = v;
+    }
     const status = await services.check(
       {
       id: `test-${Date.now()}`,

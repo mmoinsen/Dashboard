@@ -66,6 +66,8 @@ export interface IntegrationDef {
   urlPlaceholder?: string;
   /** Integration specific hint under the URL field (port, path, ...). */
   urlHelp?: string;
+  /** Pre-tick "TLS-Zertifikat nicht prüfen" for new services (self-signed certs are the norm, e.g. Proxmox). */
+  defaultInsecure?: boolean;
   /** Configuration fields shown in the service form (url is added automatically). */
   fields?: FieldDef[];
   /** False for integrations without a base URL (e.g. Docker via socket). */

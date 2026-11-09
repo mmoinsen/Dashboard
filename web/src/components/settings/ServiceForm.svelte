@@ -61,6 +61,7 @@
     type = i.id;
     if (!name) name = i.name;
     config = Object.fromEntries(i.fields.filter((f) => f.default !== undefined).map((f) => [f.key, f.default]));
+    if (i.defaultInsecure) config.insecure = true; // e.g. Proxmox: self-signed certificate is the norm
   }
 
   function payload() {

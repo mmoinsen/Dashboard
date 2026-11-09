@@ -129,7 +129,10 @@ export default defineIntegration({
   bang: 'pve',
   urlPlaceholder: 'https://192.168.1.10:8006',
   urlHelp:
-    'Adresse der Proxmox-Weboberfläche inkl. Port 8006. Bei selbstsigniertem Zertifikat unten „TLS-Zertifikat nicht prüfen“ aktivieren.',
+    'Adresse der Proxmox-Weboberfläche inkl. Port 8006 (immer https – http:// wird automatisch umgestellt). Proxmox nutzt meist ein selbstsigniertes Zertifikat, deshalb ist „TLS-Zertifikat nicht prüfen“ vorausgewählt.',
+  defaultInsecure: true,
+  // pveproxy on 8006 only speaks HTTPS; an http:// URL would just bounce to https
+  connection: (service) => ({ baseUrl: service.url.replace(/^http:\/\//i, 'https://') }),
   fields: [
     {
       key: 'tokenId',
