@@ -87,7 +87,7 @@
       {#if app.editing}
         <span class="grip" title="Ziehen zum Verschieben"><Glyph name="grip" /></span>
       {/if}
-      {#if icon}<Icon name={icon} label={title} size={30} />{/if}
+      {#if icon}<span class="icon-tile"><Icon name={icon} label={title} size={26} /></span>{/if}
       <div class="head-text">
         <h3>
           {#if svc && !app.editing}
@@ -96,7 +96,7 @@
             {title}
           {/if}
         </h3>
-        {#if data?.summary}<div class="summary">{data.summary}</div>{:else if winfo && !widget.builtin}<div class="summary">{winfo.name}</div>{/if}
+        {#if data?.summary}<div class="summary clamp-2" title={data.summary}>{data.summary}</div>{:else if winfo && !widget.builtin}<div class="summary">{winfo.name}</div>{/if}
       </div>
       {#if app.editing}
         <div class="edit-tools">
@@ -142,6 +142,7 @@
     min-width: 0;
     transition:
       box-shadow 0.2s,
+      border-color 0.2s,
       opacity 0.2s;
   }
   .widget.bare {
@@ -170,6 +171,19 @@
     flex-wrap: wrap;
     row-gap: 10px;
   }
+  .widget:not(.editing):not(.bare):hover {
+    border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  }
+  .icon-tile {
+    width: 40px;
+    height: 40px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: calc(var(--radius-sm) + 2px);
+    background: color-mix(in srgb, var(--text) 6%, var(--surface-2));
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
   .grip {
     color: var(--muted);
     display: grid;
@@ -179,7 +193,7 @@
     min-width: 0;
   }
   h3 {
-    font-size: 15px;
+    font-size: 15.5px;
     font-weight: 600;
     font-family: var(--font-body);
     letter-spacing: 0;
@@ -196,10 +210,8 @@
   }
   .summary {
     font-size: 12px;
+    line-height: 1.35;
     color: var(--muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   .content {
     display: flex;

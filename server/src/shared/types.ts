@@ -72,7 +72,7 @@ export type Block =
   | { type: 'list'; title?: string; items: ListItem[]; empty?: string }
   | { type: 'toggles'; items: ToggleItem[] }
   | { type: 'posters'; title?: string; items: PosterItem[] }
-  | { type: 'chart'; label?: string; unit?: string; series: { label: string; points: number[]; tone?: Tone }[] }
+  | { type: 'chart'; label?: string; unit?: string; series: { label: string; points: number[]; tone?: Tone }[]; /** epoch ms per point, for tooltips */ times?: number[] }
   | { type: 'kv'; items: { label: string; value: string }[] }
   | { type: 'text'; text: string; tone?: Tone }
   | { type: 'actions'; items: ActionRef[] }

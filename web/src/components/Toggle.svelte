@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rangeFill } from '../lib/actions.ts';
   import { runAction } from '../lib/api.ts';
   import { toast } from '../lib/store.svelte.ts';
   import type { ToggleItem } from '../lib/types.ts';
@@ -9,10 +10,13 @@
   let on = $state(false);
   let level = $state(0);
   let busy = $state(false);
+  let dragging = false;
   $effect(() => {
     on = item.on;
-    level = item.slider?.value ?? 0;
+    if (!dragging) level = item.slider?.value ?? 0;
   });
+
+  const unit = $derived(item.slider?.unit === '%' ? '%' : (item.slider?.unit ?? ''));
 
   async function flip() {
     if (!item.action || item.readonly || busy) return;
@@ -34,6 +38,7 @@
   }
 
   async function slide() {
+    dragging = false;
     if (!item.slider) return;
     try {
       const r = await runAction(item.slider.action, { value: level });
@@ -46,43 +51,55 @@
   }
 </script>
 
-<div class="toggle" class:on class:compact>
+<div class="toggle" class:on class:compact class:readonly={item.readonly}>
   <div class="top">
     <div class="text">
-      <div class="title">{item.title}</div>
-      {#if item.subtitle}<div class="sub">{item.subtitle}</div>{/if}
+      <div class="title clamp-2" title={item.title}>{item.title}</div>
+      {#if item.subtitle}<div class="sub" title={item.subtitle}>{item.subtitle}</div>{/if}
     </div>
     {#if item.action && !item.readonly}
       <button class="switch" role="switch" aria-checked={on} aria-label="{item.title} {on ? 'ausschalten' : 'einschalten'}" onclick={flip} disabled={busy}>
-        <span></span>
+        <span class="knob"></span>
       </button>
     {/if}
   </div>
   {#if item.slider}
-    <label class="slider">
-      <span class="sr-only">{item.slider.action.label}</span>
-      <input type="range" min={item.slider.min} max={item.slider.max} step={item.slider.unit === '°C' ? 0.5 : 1} bind:value={level} onchange={slide} />
-      <span class="val mono">{level}{item.slider.unit === '%' ? ' %' : ` ${item.slider.unit ?? ''}`}</span>
-    </label>
+    <div class="slider">
+      <input
+        type="range"
+        min={item.slider.min}
+        max={item.slider.max}
+        step={item.slider.unit === '°C' ? 0.5 : 1}
+        bind:value={level}
+        use:rangeFill={level}
+        oninput={() => (dragging = true)}
+        onchange={slide}
+        aria-label="{item.title}: {item.slider.action.label}"
+      />
+      <span class="val">{level.toLocaleString('de-DE')}<small>{unit}</small></span>
+    </div>
   {/if}
 </div>
 
 <style>
   .toggle {
-    padding: calc(12px * var(--space));
+    padding: calc(12px * var(--space)) 14px;
     border-radius: var(--radius-sm);
     background: var(--surface-2);
-    border: 1px solid var(--border);
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
     display: flex;
     flex-direction: column;
     gap: 10px;
+    min-width: 0;
     transition:
-      background 0.2s,
-      border-color 0.2s;
+      background 0.25s,
+      border-color 0.25s,
+      box-shadow 0.25s;
   }
   .toggle.on {
-    background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
-    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    background: color-mix(in srgb, var(--accent) 11%, var(--surface-2));
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+    box-shadow: inset 0 0 24px -12px color-mix(in srgb, var(--accent) 60%, transparent);
   }
   .top {
     display: flex;
@@ -96,57 +113,75 @@
   .title {
     font-weight: 500;
     font-size: 14px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.3;
   }
   .sub {
+    margin-top: 2px;
     font-size: 12px;
     color: var(--muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+  }
+  .on .sub {
+    color: color-mix(in srgb, var(--accent) 55%, var(--text));
   }
   .switch {
-    width: 50px;
-    height: 30px;
+    position: relative;
+    width: 46px;
+    height: 28px;
+    flex: none;
     border-radius: 999px;
     border: 0;
-    padding: 3px;
-    background: color-mix(in srgb, var(--muted) 45%, transparent);
+    padding: 0;
     cursor: pointer;
-    flex: none;
-    display: flex;
-    transition: background 0.2s;
+    background: color-mix(in srgb, var(--muted) 38%, transparent);
+    transition: background 0.25s;
   }
-  .switch span {
-    width: 24px;
-    height: 24px;
+  .switch:disabled {
+    cursor: progress;
+  }
+  .knob {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     background: #fff;
-    transition: transform 0.2s;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.6, 1);
   }
   .on .switch {
     background: var(--accent);
   }
-  .on .switch span {
-    transform: translateX(20px);
+  .on .knob {
+    transform: translateX(18px);
+  }
+  .switch:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   .slider {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
   }
   .slider input {
     flex: 1;
-    accent-color: var(--accent);
-    min-height: 24px;
+    min-width: 0;
   }
   .val {
+    flex: none;
+    min-width: 52px;
+    text-align: center;
+    font-family: var(--font-mono);
     font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--muted) 15%, transparent);
+  }
+  .val small {
+    font-size: 10px;
+    margin-left: 2px;
     color: var(--muted);
-    min-width: 46px;
-    text-align: right;
   }
 </style>

@@ -115,6 +115,11 @@ textarea {
   border-radius: var(--radius);
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
+  /* faint top highlight + soft depth */
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 8px 24px -12px rgba(0, 0, 0, 0.28);
 }
 
 /* ---------- buttons ---------- */
@@ -127,8 +132,8 @@ textarea {
   min-height: 40px;
   padding: 0 14px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface-2);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--text) 5%, var(--surface-2));
   color: var(--text);
   font-weight: 500;
   font-size: 14px;
@@ -138,11 +143,14 @@ textarea {
   transition:
     background 0.15s,
     border-color 0.15s,
+    color 0.15s,
+    box-shadow 0.15s,
     transform 0.05s;
 }
 
 .btn:hover {
-  border-color: color-mix(in srgb, var(--text) 25%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
 
 .btn:active {
@@ -159,6 +167,12 @@ textarea {
   border-color: var(--accent);
   color: var(--accent-text);
   font-weight: 600;
+  box-shadow: 0 4px 14px -6px var(--accent);
+}
+
+.btn.primary:hover {
+  background: color-mix(in srgb, var(--accent) 88%, var(--text));
+  border-color: transparent;
 }
 
 .btn.danger {
@@ -173,8 +187,9 @@ textarea {
 
 .btn.small {
   min-height: 32px;
-  padding: 0 10px;
+  padding: 0 11px;
   font-size: 13px;
+  border-radius: 999px;
 }
 
 .icon-btn {
@@ -362,4 +377,71 @@ textarea.input {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* ---------- range sliders (consistent across browsers, filled up to the thumb) ---------- */
+
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 24px;
+  background: transparent;
+  cursor: pointer;
+  --p: 50%;
+  --track: color-mix(in srgb, var(--muted) 28%, transparent);
+}
+input[type='range']:focus-visible {
+  outline: none;
+}
+input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) var(--p), var(--track) var(--p));
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  transition: transform 0.12s ease;
+}
+input[type='range']:hover::-webkit-slider-thumb,
+input[type='range']:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+input[type='range']:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+input[type='range']::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--track);
+}
+input[type='range']::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* text that may be long: wrap to at most two lines instead of being cut off */
+.clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }

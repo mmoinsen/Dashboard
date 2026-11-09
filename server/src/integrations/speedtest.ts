@@ -47,10 +47,11 @@ export default defineIntegration({
       interval: 300,
       async fetch(ctx) {
         const r = await latest(ctx);
-        const history: number[][] = (ctx.state.history ??= [[], []]);
+        const history: number[][] = (ctx.state.history ??= [[], [], []]);
         if (ctx.state.lastAt !== r.at) {
           history[0].push(Math.round(r.download));
           history[1].push(Math.round(r.upload));
+          history[2].push(r.at ? new Date(r.at).getTime() : Date.now());
           if (history[0].length > 24) history.forEach((h) => h.shift());
           ctx.state.lastAt = r.at;
         }
@@ -66,7 +67,17 @@ export default defineIntegration({
               ],
             },
             ...(history[0].length > 1
-              ? [{ type: 'chart' as const, unit: 'Mbit/s', series: [{ label: 'Download', points: [...history[0]], tone: 'info' as const }] }]
+              ? [
+                  {
+                    type: 'chart' as const,
+                    unit: 'Mbit/s',
+                    times: [...(history[2] ?? [])],
+                    series: [
+                      { label: 'Download', points: [...history[0]], tone: 'info' as const },
+                      { label: 'Upload', points: [...history[1]], tone: 'accent' as const },
+                    ],
+                  },
+                ]
               : []),
           ],
         };

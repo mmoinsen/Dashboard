@@ -53,9 +53,14 @@ export default defineIntegration({
         const rps = prev && s.requests >= prev.requests ? (s.requests - prev.requests) / ((now - prev.t) / 1000) : undefined;
         ctx.state.prev = { t: now, requests: s.requests };
         const history: number[] = (ctx.state.history ??= []);
+        const times: number[] = (ctx.state.times ??= []);
         if (rps != null) {
           history.push(Math.round(rps * 10) / 10);
-          if (history.length > 40) history.shift();
+          times.push(now);
+          if (history.length > 40) {
+            history.shift();
+            times.shift();
+          }
         }
         return {
           summary: `${num(s.requests)} Anfragen gesamt`,
@@ -69,7 +74,7 @@ export default defineIntegration({
                 { label: 'Wartend', value: s.waiting },
               ],
             },
-            ...(history.length > 1 ? [{ type: 'chart' as const, unit: 'req/s', series: [{ label: 'Anfragen/s', points: [...history] }] }] : []),
+            ...(history.length > 1 ? [{ type: 'chart' as const, unit: 'req/s', times: [...times], series: [{ label: 'Anfragen/s', points: [...history] }] }] : []),
           ],
         };
       },

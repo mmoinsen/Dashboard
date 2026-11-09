@@ -31,15 +31,20 @@ export default defineIntegration({
         await res.body?.cancel();
         const ms = Date.now() - t0;
         const history: number[] = (ctx.state.history ??= []);
+        const times: number[] = (ctx.state.times ??= []);
         history.push(ms);
-        if (history.length > 30) history.shift();
+        times.push(Date.now());
+        if (history.length > 30) {
+          history.shift();
+          times.shift();
+        }
         const ok = res.status < 400;
         return {
           summary: ok ? 'Online' : `HTTP ${res.status}`,
           status: ok ? 'ok' : 'bad',
           blocks: [
             { type: 'stats', items: [{ label: 'Status', value: res.status, tone: ok ? 'ok' : 'bad' }, { label: 'Antwortzeit', value: ms, unit: 'ms' }] },
-            ...(history.length > 2 ? [{ type: 'chart' as const, unit: 'ms', series: [{ label: 'Antwortzeit', points: [...history] }] }] : []),
+            ...(history.length > 2 ? [{ type: 'chart' as const, unit: 'ms', times: [...times], series: [{ label: 'Antwortzeit', points: [...history] }] }] : []),
           ],
         };
       },

@@ -3,6 +3,7 @@
   import { FONT_OPTIONS, PRESETS, applyTheme, findTheme } from '../../lib/themes.ts';
   import type { Theme, ThemeTokens } from '../../lib/types.ts';
   import { copyText } from '../../lib/id.ts';
+  import { rangeFill } from '../../lib/actions.ts';
   import Glyph from '../Glyph.svelte';
 
   const custom = $derived(app.user?.settings.customThemes ?? []);
@@ -144,15 +145,15 @@
     <div class="form-grid">
       <label class="field">
         <span>Eckenradius · {editing.tokens.radius} px</span>
-        <input type="range" min="0" max="28" bind:value={editing.tokens.radius} />
+        <input type="range" min="0" max="28" bind:value={editing.tokens.radius} use:rangeFill={editing.tokens.radius} />
       </label>
       <label class="field">
         <span>Karten-Deckkraft · {Math.round(editing.tokens.surfaceAlpha * 100)} %</span>
-        <input type="range" min="0.05" max="1" step="0.01" bind:value={editing.tokens.surfaceAlpha} />
+        <input type="range" min="0.05" max="1" step="0.01" bind:value={editing.tokens.surfaceAlpha} use:rangeFill={editing.tokens.surfaceAlpha} />
       </label>
       <label class="field">
         <span>Blur (Glas-Effekt) · {editing.tokens.blur} px</span>
-        <input type="range" min="0" max="40" bind:value={editing.tokens.blur} />
+        <input type="range" min="0" max="40" bind:value={editing.tokens.blur} use:rangeFill={editing.tokens.blur} />
       </label>
       <label class="field">
         <span>Dichte</span>
@@ -296,7 +297,5 @@
     width: 100%;
     outline: none;
   }
-  input[type='range'] {
-    accent-color: var(--accent);
-  }
+
 </style>

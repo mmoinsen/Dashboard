@@ -234,6 +234,7 @@ export default defineIntegration({
             type: 'chart',
             label: 'Geschwindigkeit (letzte Minuten)',
             unit: 'MB/s',
+            times: hist.map((h) => h.t),
             series: [
               { label: 'Download', points: hist.map((h) => Math.round((h.dl / 1048576) * 10) / 10), tone: 'info' },
               { label: 'Upload', points: hist.map((h) => Math.round((h.ul / 1048576) * 10) / 10), tone: 'accent' },
