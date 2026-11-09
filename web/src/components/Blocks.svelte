@@ -7,15 +7,21 @@
   import Toggle from './Toggle.svelte';
 
   /** Generic renderer for widget blocks – integrations never ship their own UI. */
-  let { blocks, refresh }: { blocks: Block[]; refresh: () => void } = $props();
+  let { blocks, refresh, detail = false }: { blocks: Block[]; refresh: () => void; detail?: boolean } = $props();
 
-  function sparkline(points: number[], w = 300, h = 64) {
-    if (points.length < 2) return '';
-    const max = Math.max(...points);
-    const min = Math.min(...points);
+  const TONE_VAR: Record<string, string> = { info: 'info', accent: 'accent', ok: 'ok', warn: 'warn', bad: 'bad', muted: 'muted', default: 'accent' };
+
+  /** All series of a chart share one scale, so download and upload are comparable. */
+  function chartPaths(series: { points: number[] }[], w = 300, h = 64) {
+    const all = series.flatMap((s) => s.points);
+    const max = Math.max(...all, 0);
+    const min = Math.min(...all, 0);
     const span = max - min || 1;
-    return points.map((p, i) => `${((i / (points.length - 1)) * w).toFixed(1)},${(h - 4 - ((p - min) / span) * (h - 8)).toFixed(1)}`).join(' ');
+    return series.map((s) =>
+      s.points.length < 2 ? '' : s.points.map((p, i) => `${((i / (s.points.length - 1)) * w).toFixed(1)},${(h - 3 - ((p - min) / span) * (h - 6)).toFixed(1)}`).join(' '),
+    );
   }
+  const last = (pts: number[]) => pts[pts.length - 1];
 </script>
 
 {#each blocks as b, bi (bi)}
@@ -42,7 +48,7 @@
     {#if !b.items.length}
       <div class="empty">{b.empty ?? 'Keine Einträge'}</div>
     {:else}
-      <ul class="list">
+      <ul class="list" class:detail>
         {#each b.items as it}
           <li class="row">
             {#if it.image}
@@ -96,12 +102,20 @@
       {/each}
     </div>
   {:else if b.type === 'chart'}
-    {#each b.series as s}
-      <svg class="chart" viewBox="0 0 300 64" preserveAspectRatio="none" role="img" aria-label="{s.label}{b.unit ? ` in ${b.unit}` : ''}">
-        <polyline points={sparkline(s.points)} fill="none" stroke="var(--{s.tone === 'info' ? 'info' : 'accent'})" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+    {@const paths = chartPaths(b.series)}
+    <figure class="chart-wrap">
+      {#if b.label}<figcaption class="section-title">{b.label}</figcaption>{/if}
+      <svg class="chart" class:big={detail} viewBox="0 0 300 64" preserveAspectRatio="none" role="img" aria-label="{b.label ?? b.series.map((s) => s.label).join(', ')}{b.unit ? ` in ${b.unit}` : ''}">
+        {#each b.series as s, i}
+          <polyline points={paths[i]} fill="none" stroke="var(--{TONE_VAR[s.tone ?? (i === 0 ? 'accent' : 'info')]})" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+        {/each}
       </svg>
-      <div class="chart-legend muted"><span>{s.label}</span><span class="mono">min {Math.min(...s.points)} · max {Math.max(...s.points)} {b.unit ?? ''}</span></div>
-    {/each}
+      <div class="chart-legend muted">
+        {#each b.series as s, i}
+          <span><span class="dot" style="background:var(--{TONE_VAR[s.tone ?? (i === 0 ? 'accent' : 'info')]})"></span>{s.label}: <span class="mono">{last(s.points)} {b.unit ?? ''}</span> <span class="mono minmax">(max {Math.max(...s.points)})</span></span>
+        {/each}
+      </div>
+    </figure>
   {:else if b.type === 'kv'}
     <dl class="kv">
       {#each b.items as kv}
@@ -109,6 +123,8 @@
         <dd class="mono">{kv.value}</dd>
       {/each}
     </dl>
+  {:else if b.type === 'heading'}
+    <h4 class="heading">{b.text}</h4>
   {:else if b.type === 'text'}
     <p class="text tone-{b.tone ?? 'default'}">{b.text}</p>
   {:else if b.type === 'actions'}
@@ -346,16 +362,48 @@
     color: var(--muted);
     margin-top: -4px;
   }
+  .chart-wrap {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
   .chart {
     width: 100%;
     height: 64px;
     display: block;
   }
+  .chart.big {
+    height: 140px;
+  }
   .chart-legend {
     display: flex;
-    justify-content: space-between;
-    font-size: 11px;
-    margin-top: -4px;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    font-size: 12px;
+  }
+  .chart-legend > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .minmax {
+    opacity: 0.7;
+  }
+  .heading {
+    margin: 10px 0 -4px;
+    font-size: 12px;
+    font-family: var(--font-body);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .heading:first-child {
+    margin-top: 0;
+  }
+  .list.detail .row-actions {
+    opacity: 1;
   }
   .kv {
     display: grid;

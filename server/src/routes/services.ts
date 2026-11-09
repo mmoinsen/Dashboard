@@ -11,12 +11,32 @@ const widgetLog = logger('widget');
 const actionLog = logger('action');
 const proxyLog = logger('proxy');
 
+/** Fill in defaults and clamp numbers to their declared bounds (a -3 "limit" becomes 1). */
+export function normalizeOptions(fields: FieldDef[], input: Record<string, unknown> = {}): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const f of fields) if (f.default !== undefined) out[f.key] = f.default;
+  for (const [k, v] of Object.entries(input)) if (v !== '' && v != null) out[k] = v;
+  for (const f of fields) {
+    if (f.type !== 'number' || out[f.key] == null) continue;
+    let n = Number(out[f.key]);
+    if (!Number.isFinite(n)) {
+      delete out[f.key];
+      if (f.default !== undefined) out[f.key] = f.default;
+      continue;
+    }
+    if (f.min != null) n = Math.max(n, f.min);
+    if (f.max != null) n = Math.min(n, f.max);
+    out[f.key] = n;
+  }
+  return out;
+}
+
 /** A TypeError without a network cause means the integration choked on unexpected data. */
 function isCodeError(err: unknown) {
   return (err instanceof TypeError || err instanceof RangeError || err instanceof SyntaxError) && !(err as any).cause;
 }
 import type { ServiceInput } from '../services.ts';
-import type { WidgetData } from '../shared/types.ts';
+import type { FieldDef, WidgetData } from '../shared/types.ts';
 
 export const serviceRoutes = (ctx: AppContext) => async (app: FastifyInstance) => {
   const { services } = ctx;
@@ -107,7 +127,7 @@ export const serviceRoutes = (ctx: AppContext) => async (app: FastifyInstance) =
   // ----- widgets -----
 
   app.post('/widget', { preHandler: requireUser }, async (req, reply) => {
-    const b = req.body as { service: string; builtin?: boolean; widget: string; options?: Record<string, unknown> };
+    const b = req.body as { service: string; builtin?: boolean; widget: string; options?: Record<string, unknown>; detail?: boolean };
     let wctx: Context;
     let def;
     if (b.builtin) {
@@ -132,15 +152,22 @@ export const serviceRoutes = (ctx: AppContext) => async (app: FastifyInstance) =
       widgetLog.warn(`Widget "${b.widget}" gibt es bei ${def.name} nicht (Integration aktualisiert?)`, { service: b.service });
       return reply.status(404).send({ error: `Widget „${b.widget}“ gibt es nicht` });
     }
-    const options = { ...Object.fromEntries((w.options ?? []).filter((o) => o.default !== undefined).map((o) => [o.key, o.default])), ...(b.options ?? {}) };
+    const options = normalizeOptions(w.options ?? [], b.options);
+    // Detail view: the widget's own detail(), or the normal fetch with more entries.
+    const detail = Boolean(b.detail);
+    if (detail && !w.detail) {
+      options.detail = true;
+      options.limit = Math.min(Math.max(Number(options.limit) || 5, 5) * 4, 100);
+    }
+    const run = detail && w.detail ? w.detail.bind(w) : w.fetch.bind(w);
     const ttl = Math.max((w.interval ?? 60) * 1000 - 500, 1000);
-    const key = `${wctx.service.id}:w:${b.widget}:${sha256(JSON.stringify(options))}`;
-    const label = `${wctx.service.name}/${w.name}`;
-    const trackKey = `${wctx.service.id}:${b.widget}`;
+    const key = `${wctx.service.id}:w:${b.widget}:${detail ? 'detail:' : ''}${sha256(JSON.stringify(options))}`;
+    const label = `${wctx.service.name}/${w.name}${detail ? ' (Details)' : ''}`;
+    const trackKey = `${wctx.service.id}:${b.widget}${detail ? ':detail' : ''}`;
     try {
       const t0 = Date.now();
       const data = await services.cache.get<WidgetData>(key, ttl, async () => {
-        const d = await w.fetch(wctx, options);
+        const d = await run(wctx, options);
         widgetLog.debug(`${label} aktualisiert`, { ms: Date.now() - t0 });
         return d;
       });

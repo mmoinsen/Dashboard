@@ -19,7 +19,7 @@
   let sourceKey = $state(initial ? (initial.builtin ? `builtin:${initial.service}` : initial.service) : '');
   let widgetId = $state(initial?.widget ?? '');
   let title = $state(initial?.title ?? '');
-  let width = $state(initial?.w ?? 1);
+  let width = $state(initial?.w ?? 3);
   let options: Record<string, any> = $state({ ...(initial?.options ?? {}) });
   let filter = $state('');
 
@@ -38,7 +38,7 @@
   function pickWidget(id: string) {
     widgetId = id;
     options = {};
-    width = def?.widgets.find((w) => w.id === id)?.size ?? 1;
+    width = (def?.widgets.find((w) => w.id === id)?.size ?? 1) * 3;
   }
 
   function save() {
@@ -113,10 +113,12 @@
         <label class="field">
           <span>Breite</span>
           <select class="input" bind:value={width}>
-            <option value={1}>1 Spalte</option>
-            <option value={2}>2 Spalten</option>
-            <option value={3}>3 Spalten</option>
-            <option value={4}>4 Spalten (volle Breite)</option>
+            <option value={3}>¼ (schmal)</option>
+            <option value={4}>⅓</option>
+            <option value={6}>½</option>
+            <option value={8}>⅔</option>
+            <option value={12}>Volle Breite</option>
+            {#if ![3, 4, 6, 8, 12].includes(width)}<option value={width}>{width} von 12 Spalten</option>{/if}
           </select>
         </label>
         {#each winfo.options as f (f.key)}

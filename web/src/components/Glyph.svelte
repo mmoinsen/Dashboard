@@ -33,6 +33,8 @@
     home: 'M3 10l9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10',
     box: 'M21 16V8l-9-5-9 5v8l9 5zM3.3 7L12 12l8.7-5M12 22V12',
     copy: 'M9 9h13v13H9zM5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1',
+    maximize: 'M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7',
+    resize: 'M21 15l-6 6M21 8L8 21',
   };
 </script>
 

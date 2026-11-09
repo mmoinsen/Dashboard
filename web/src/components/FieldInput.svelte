@@ -26,7 +26,26 @@
     {:else if field.type === 'secret'}
       <input {id} class="input" type="password" autocomplete="new-password" placeholder={secretSet ? '•••••••• (gespeichert – leer lassen zum Behalten)' : (field.placeholder ?? '')} bind:value />
     {:else if field.type === 'number'}
-      <input {id} class="input" type="number" step="any" placeholder={field.placeholder ?? (field.default != null ? String(field.default) : '')} bind:value />
+      <input
+        {id}
+        class="input"
+        type="number"
+        step="any"
+        min={field.min}
+        max={field.max}
+        placeholder={field.placeholder ?? (field.default != null ? String(field.default) : '')}
+        bind:value
+        onchange={() => {
+          // keep the value inside the allowed range (e.g. no negative counts)
+          if (value === '' || value == null) return;
+          let n = Number(value);
+          if (!Number.isFinite(n)) return (value = '');
+          if (field.min != null) n = Math.max(n, field.min);
+          if (field.max != null) n = Math.min(n, field.max);
+          value = n;
+        }}
+      />
+      {#if field.min != null || field.max != null}<small>{field.min != null && field.max != null ? `${field.min} bis ${field.max}` : field.min != null ? `mindestens ${field.min}` : `höchstens ${field.max}`}</small>{/if}
     {:else}
       <input {id} class="input" type={field.type === 'url' ? 'url' : 'text'} placeholder={field.placeholder ?? (field.default != null ? String(field.default) : '')} bind:value />
     {/if}

@@ -124,6 +124,7 @@ export function describe(def: IntegrationDef): IntegrationInfo {
       interval: w.interval ?? 60,
       options: w.options ?? [],
       size: w.size,
+      hasDetail: Boolean(w.detail),
     })),
     searchable: Boolean(def.search),
     bang: def.bang,

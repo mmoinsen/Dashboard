@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS } from '../config.ts';
 import { getSetting, setSetting } from '../db.ts';
 import { allIntegrations, describe, getIntegration } from '../integrations/index.ts';
 import type { AppSettings, Dashboard, DashboardPage, WidgetInstance } from '../shared/types.ts';
+import { GRID_COLUMNS, autoPlace } from '../shared/layout.ts';
 
 /** Defaults ⊕ kompass.yaml ⊕ settings saved in the UI. */
 export function effectiveSettings(ctx: AppContext): AppSettings {
@@ -21,24 +22,25 @@ export function effectiveSettings(ctx: AppContext): AppSettings {
 
 /** A sensible first dashboard: one default widget per configured service. */
 export function defaultDashboard(ctx: AppContext): Dashboard {
-  const widgets: WidgetInstance[] = [{ id: randomUUID(), service: 'clock', builtin: true, widget: 'clock', w: 1 }];
+  const widgets: WidgetInstance[] = [{ id: randomUUID(), service: 'clock', builtin: true, widget: 'clock', w: 3 }];
   const settings = effectiveSettings(ctx);
   if (settings.weather) {
-    widgets.push({ id: randomUUID(), service: 'weather', builtin: true, widget: 'forecast', w: 1, options: { ...settings.weather } });
+    widgets.push({ id: randomUUID(), service: 'weather', builtin: true, widget: 'forecast', w: 3, options: { ...settings.weather } });
   }
   for (const s of ctx.services.list()) {
     const def = getIntegration(s.type);
     const widget = def?.defaultWidget ?? Object.keys(def?.widgets ?? {})[0];
     if (!widget) continue;
-    widgets.push({ id: randomUUID(), service: s.id, widget, w: def?.widgets?.[widget]?.size ?? 1 });
+    widgets.push({ id: randomUUID(), service: s.id, widget, w: (def?.widgets?.[widget]?.size ?? 1) * 3 });
     if (widgets.length >= 16) break;
   }
-  return { pages: [{ id: 'home', name: 'Übersicht', showSearch: true, showServices: true, widgets }] };
+  return { layout: 2, pages: [{ id: 'home', name: 'Übersicht', showSearch: true, showServices: true, widgets: autoPlace(widgets) }] };
 }
 
 function sanitizeDashboard(input: any): Dashboard {
   if (!input || !Array.isArray(input.pages) || !input.pages.length) throw new Error('Ungültiges Dashboard');
   if (input.pages.length > 20) throw new Error('Maximal 20 Seiten');
+  const legacy = input.layout !== 2;
   const pages: DashboardPage[] = input.pages.map((p: any) => {
     if (!Array.isArray(p.widgets) || p.widgets.length > 100) throw new Error('Ungültige Widgets');
     return {
@@ -54,12 +56,15 @@ function sanitizeDashboard(input: any): Dashboard {
           widget: String(w.widget ?? '').slice(0, 64),
           title: w.title ? String(w.title).slice(0, 60) : undefined,
           options: w.options && typeof w.options === 'object' ? w.options : undefined,
-          w: Math.min(Math.max(Number(w.w) || 1, 1), 4),
+          // 12-column grid since layout 2; older dashboards used 1..4 and are converted by the client
+          w: Math.min(Math.max(Math.round(Number(w.w) || 3), 1), legacy ? 4 : GRID_COLUMNS),
+          x: legacy || !Number.isFinite(Number(w.x)) ? undefined : Math.min(Math.max(Math.round(Number(w.x)), 0), GRID_COLUMNS - 1),
+          y: legacy || !Number.isFinite(Number(w.y)) ? undefined : Math.max(Number(w.y), 0),
         }),
       ),
     };
   });
-  const out = { pages };
+  const out: Dashboard = { layout: legacy ? undefined : 2, pages };
   if (JSON.stringify(out).length > 500_000) throw new Error('Dashboard zu groß');
   return out;
 }

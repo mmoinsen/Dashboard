@@ -55,6 +55,33 @@ async function qbCompat(ctx: Context, modern: string, legacy: string, form: Reco
   }
 }
 
+/** Keep the last ~10 minutes of speed samples (taken whenever the widget refreshes). */
+function recordSpeed(ctx: Context, info: any) {
+  const hist: { t: number; dl: number; ul: number }[] = (ctx.state.speeds ??= []);
+  const now = Date.now();
+  if (!hist.length || now - hist[hist.length - 1].t > 2500) hist.push({ t: now, dl: info.dl_info_speed ?? 0, ul: info.up_info_speed ?? 0 });
+  while (hist.length > 200 || (hist.length && now - hist[0].t > 10 * 60_000)) hist.shift();
+  return hist;
+}
+
+function torrentItem(ctx: Context, t: any): ListItem {
+  const [label, tone] = STATE[t.state] ?? [t.state, 'default' as Tone];
+  const progress = Math.round(t.progress * 100);
+  const paused = /paused|stopped/i.test(t.state);
+  return {
+    title: t.name,
+    subtitle: `${label} · ${bytes(t.size)}${t.dlspeed ? ` · ↓ ${bytes(t.dlspeed)}/s` : ''}${t.upspeed ? ` · ↑ ${bytes(t.upspeed)}/s` : ''}${t.category ? ` · ${t.category}` : ''}`,
+    meta: progress < 100 ? `${progress} % · ${duration(t.eta)}` : `Ratio ${t.ratio?.toFixed(2)}`,
+    progress,
+    status: tone,
+    actions: [
+      paused
+        ? { service: ctx.service.id, action: 'resume', params: { hash: t.hash }, label: 'Fortsetzen' }
+        : { service: ctx.service.id, action: 'pause', params: { hash: t.hash }, label: 'Pausieren' },
+    ],
+  };
+}
+
 const STATE: Record<string, [string, Tone]> = {
   downloading: ['Lädt', 'info'],
   forcedDL: ['Lädt (erzwungen)', 'info'],
@@ -132,6 +159,7 @@ export default defineIntegration({
             downloading: list.filter((t) => ['downloading', 'stalledDL', 'forcedDL', 'metaDL', 'queuedDL'].includes(t.state)).length,
           };
         });
+        recordSpeed(ctx, info);
         const dl = speedParts(info.dl_info_speed ?? 0);
         const ul = speedParts(info.up_info_speed ?? 0);
         const altMode = String(prefs) === '1';
@@ -168,6 +196,66 @@ export default defineIntegration({
             },
           ],
         };
+      },
+      async detail(ctx) {
+        const [info, list, prefs, main] = await Promise.all([
+          qb<any>(ctx, '/api/v2/transfer/info'),
+          qb<any[]>(ctx, '/api/v2/torrents/info?sort=name'),
+          qb<any>(ctx, '/api/v2/transfer/speedLimitsMode').catch(() => 0),
+          ctx.cache.get(`${ctx.service.id}:maindata`, 15_000, () => qb<any>(ctx, '/api/v2/sync/maindata?rid=0').catch(() => null)),
+        ]);
+        const hist = recordSpeed(ctx, info);
+        const st = main?.server_state ?? {};
+        const altMode = String(prefs) === '1';
+        const groups: [string, (t: any) => boolean][] = [
+          ['Fehler', (t) => ['error', 'missingFiles'].includes(t.state)],
+          ['Lädt', (t) => ['downloading', 'forcedDL', 'metaDL', 'stalledDL', 'queuedDL', 'checkingDL'].includes(t.state)],
+          ['Seeding', (t) => ['uploading', 'forcedUP', 'stalledUP'].includes(t.state)],
+          ['Pausiert & fertig', () => true],
+        ];
+        const used = new Set<string>();
+        const blocks: any[] = [
+          {
+            type: 'stats',
+            items: [
+              { label: 'Download', ...speedParts(info.dl_info_speed ?? 0), tone: 'info' },
+              { label: 'Upload', ...speedParts(info.up_info_speed ?? 0), tone: 'accent' },
+              { label: 'Sitzung ↓', value: bytes(info.dl_info_data) },
+              { label: 'Sitzung ↑', value: bytes(info.up_info_data) },
+              ...(st.alltime_dl != null ? [{ label: 'Gesamt ↓', value: bytes(st.alltime_dl) }, { label: 'Gesamt ↑', value: bytes(st.alltime_ul) }] : []),
+              ...(st.global_ratio != null ? [{ label: 'Ratio', value: String(st.global_ratio) }] : []),
+              ...(st.free_space_on_disk != null ? [{ label: 'Freier Speicher', value: bytes(st.free_space_on_disk) }] : []),
+              { label: 'Verbindung', value: info.connection_status === 'connected' ? 'OK' : info.connection_status, tone: info.connection_status === 'connected' ? 'ok' : 'warn' },
+            ],
+          },
+        ];
+        if (hist.length > 1) {
+          blocks.push({
+            type: 'chart',
+            label: 'Geschwindigkeit (letzte Minuten)',
+            unit: 'MB/s',
+            series: [
+              { label: 'Download', points: hist.map((h) => Math.round((h.dl / 1048576) * 10) / 10), tone: 'info' },
+              { label: 'Upload', points: hist.map((h) => Math.round((h.ul / 1048576) * 10) / 10), tone: 'accent' },
+            ],
+          });
+        }
+        for (const [title, match] of groups) {
+          const items = list.filter((t) => !used.has(t.hash) && match(t));
+          items.forEach((t) => used.add(t.hash));
+          if (!items.length) continue;
+          blocks.push({ type: 'heading', text: `${title} (${items.length})` });
+          blocks.push({ type: 'list', items: items.slice(0, 100).map((t) => torrentItem(ctx, t)) });
+        }
+        blocks.push({
+          type: 'actions',
+          items: [
+            { service: ctx.service.id, action: 'pauseAll', label: 'Alle pausieren' },
+            { service: ctx.service.id, action: 'resumeAll', label: 'Alle fortsetzen' },
+            { service: ctx.service.id, action: 'toggleAltSpeed', label: altMode ? 'Tempolimit aus' : 'Tempolimit an' },
+          ],
+        });
+        return { summary: `${list.length} Torrents${altMode ? ' · Tempolimit aktiv' : ''}`, blocks };
       },
     },
   },

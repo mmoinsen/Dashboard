@@ -11,8 +11,18 @@
     onedit,
     onremove,
     onresize,
+    ondetail,
     dragging = false,
-  }: { widget: WidgetInstance; onedit: () => void; onremove: () => void; onresize: (w: number) => void; dragging?: boolean } = $props();
+  }: { widget: WidgetInstance; onedit: () => void; onremove: () => void; onresize: (w: number) => void; ondetail: () => void; dragging?: boolean } = $props();
+
+  /** Width presets on the 12-column grid. */
+  const SIZES = [
+    { w: 3, label: '¼' },
+    { w: 4, label: '⅓' },
+    { w: 6, label: '½' },
+    { w: 8, label: '⅔' },
+    { w: 12, label: '1' },
+  ];
 
   let data = $state<WidgetData | null>(null);
   let error = $state('');
@@ -91,15 +101,18 @@
       {#if app.editing}
         <div class="edit-tools">
           <div class="sizes" role="group" aria-label="Breite">
-            {#each [1, 2, 3, 4] as n}
-              <button class:active={(widget.w ?? 1) === n} onclick={() => onresize(n)} aria-label="Breite {n}">{n}</button>
+            {#each SIZES as sz}
+              <button class:active={(widget.w ?? 3) === sz.w} onclick={() => onresize(sz.w)} aria-label="Breite {sz.label}" title="Breite {sz.label}">{sz.label}</button>
             {/each}
           </div>
           <button class="icon-btn small" aria-label="Widget bearbeiten" onclick={onedit}><Glyph name="settings" size={16} /></button>
           <button class="icon-btn small" aria-label="Widget entfernen" onclick={onremove}><Glyph name="trash" size={16} /></button>
         </div>
-      {:else if toneClass}
-        <span class="dot bg-{toneClass}" title={status?.message ?? ''}></span>
+      {:else}
+        {#if toneClass}<span class="dot bg-{toneClass}" title={status?.message ?? ''}></span>{/if}
+        {#if !isClock}
+          <button class="icon-btn small detail-btn" aria-label="{title}: Details anzeigen" title="Details" onclick={ondetail}><Glyph name="maximize" size={15} /></button>
+        {/if}
       {/if}
     </header>
   {/if}
@@ -127,7 +140,6 @@
     flex-direction: column;
     gap: calc(14px * var(--space));
     min-width: 0;
-    height: 100%;
     transition:
       box-shadow 0.2s,
       opacity 0.2s;
@@ -145,13 +157,18 @@
     outline-offset: 2px;
   }
   .widget.dragging {
-    opacity: 0.4;
+    background: var(--surface-solid);
+    outline-color: var(--accent);
   }
   header {
     display: flex;
     align-items: center;
     gap: 11px;
     min-width: 0;
+  }
+  .editing header {
+    flex-wrap: wrap;
+    row-gap: 10px;
   }
   .grip {
     color: var(--muted);
@@ -190,10 +207,17 @@
     gap: calc(14px * var(--space));
     min-width: 0;
   }
+  /* own row under the title, so the title stays readable and grabbable */
   .edit-tools {
+    flex-basis: 100%;
     display: flex;
     align-items: center;
     gap: 2px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+  }
+  .edit-tools .sizes {
+    margin-right: auto;
   }
   .sizes {
     display: flex;
@@ -201,6 +225,20 @@
     border-radius: 8px;
     overflow: hidden;
     margin-right: 4px;
+  }
+  .detail-btn {
+    opacity: 0;
+    transition: opacity 0.15s;
+    margin-right: -6px;
+  }
+  .widget:hover .detail-btn,
+  .detail-btn:focus-visible {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .detail-btn {
+      opacity: 1;
+    }
   }
   .sizes button {
     width: 26px;

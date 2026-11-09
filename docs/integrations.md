@@ -47,6 +47,9 @@ export default defineIntegration({
     },
   },
 
+  // optional: große Ansicht hinter dem Details-Button (sonst: fetch() mit detail: true und größerem limit)
+  // async detail(ctx, options) { return { blocks: [...] }; },
+
   async search(ctx, query) {
     // query.text = Suchbegriff ohne Präfix, query.explicit = per Präfix angesprochen
     return [{ id: 'radarr:1', title: 'Dune', group: 'Radarr · Bibliothek', kind: 'media', score: 0.9 }];
@@ -63,7 +66,13 @@ export default defineIntegration({
 
 ### Feldtypen
 
-`string`, `url`, `secret` (verschlüsselt gespeichert, nie an den Browser gesendet), `number`, `boolean`, `select` (mit `options`), `text` (mehrzeilig).
+`string`, `url`, `secret` (verschlüsselt gespeichert, nie an den Browser gesendet), `number` (mit optionalem `min`/`max`, wird im Formular und auf dem Server erzwungen), `boolean`, `select` (mit `options`), `text` (mehrzeilig).
+
+### Detailansicht
+
+Jedes Widget hat einen Details-Button. Definiert ein Widget `detail(ctx, options)`, wird diese Funktion für die große Ansicht
+benutzt (z. B. alle Torrents mit Einzel-Aktionen und Geschwindigkeitsverlauf). Ohne `detail` ruft Kompass `fetch()` mit
+`options.detail = true` und einem vierfachen `limit` auf – jede Integration bekommt also automatisch eine größere Ansicht.
 
 ### Der Kontext `ctx`
 
@@ -88,12 +97,13 @@ und neue Integrationen brauchen keinen Frontend-Code.
 | `list`     | Zeilen: `{ title, subtitle?, meta?, image?, icon?, status?, badge?, progress?, url?, actions? }` |
 | `toggles`  | Schalter mit optionalem Schieberegler: `{ title, subtitle?, on, action?, slider? }`     |
 | `posters`  | Poster-Raster: `{ title, subtitle?, image?, url? }`                                     |
-| `chart`    | Sparkline: `{ series: [{ label, points: number[] }], unit? }`                           |
+| `chart`    | Verlauf, mehrere Linien mit gemeinsamer Skala: `{ series: [{ label, points: number[], tone? }], unit?, label? }` |
 | `kv`       | Schlüssel/Wert-Liste: `{ label, value }`                                                |
 | `actions`  | Buttons: `ActionRef[]`                                                                  |
 | `text`     | Hinweistext                                                                             |
 | `links`    | Link-Kacheln                                                                            |
 | `clock`    | Live-Uhr                                                                                |
+| `heading`  | Zwischenüberschrift (vor allem für Detailansichten)                                     |
 
 `tone` ist eine von `default | accent | ok | warn | bad | info | muted` – die Farben kommen aus dem Theme.
 

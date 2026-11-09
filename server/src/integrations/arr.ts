@@ -11,6 +11,7 @@ export const arrAddFields: FieldDef[] = [
     key: 'qualityProfileId',
     label: 'Qualitätsprofil-ID für neue Einträge',
     type: 'number',
+    min: 1,
     help: 'Leer = erstes Profil',
   },
   { key: 'rootFolder', label: 'Root-Ordner für neue Einträge', type: 'string', help: 'Leer = erster Root-Ordner' },

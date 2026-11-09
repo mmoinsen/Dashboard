@@ -66,6 +66,8 @@ const STATE_LABEL: Record<string, string> = {
   unknown: 'Unbekannt',
 };
 
+const byName = (a: any, b: any) => String(a.attributes?.friendly_name ?? a.entity_id).localeCompare(String(b.attributes?.friendly_name ?? b.entity_id), 'de');
+
 function domainOf(entityId: string) {
   return entityId.split('.')[0];
 }
@@ -223,30 +225,79 @@ export default defineIntegration({
     },
     overview: {
       name: 'Übersicht',
-      description: 'Lichter an, offene Fenster, wer ist zuhause',
-      interval: 15,
-      async fetch(ctx) {
+      description: 'Lichter, offene Fenster, wer ist zuhause',
+      interval: 10,
+      options: [
+        { key: 'limit', label: 'Anzahl Lichter', type: 'number', default: 6, min: 0, max: 50 },
+        { key: 'onlyOn', label: 'Nur eingeschaltete Lichter zeigen', type: 'boolean', default: false },
+      ],
+      async fetch(ctx, o) {
         const all = await states(ctx);
-        const lightsOn = all.filter((e) => domainOf(e.entity_id) === 'light' && e.state === 'on');
+        const lights = all.filter((e) => domainOf(e.entity_id) === 'light' && e.state !== 'unavailable');
+        const lightsOn = lights.filter((e) => e.state === 'on');
         const open = all.filter((e) => domainOf(e.entity_id) === 'binary_sensor' && ['window', 'door', 'opening', 'garage_door'].includes(e.attributes?.device_class) && e.state === 'on');
         const people = all.filter((e) => domainOf(e.entity_id) === 'person');
         const home = people.filter((p) => p.state === 'home');
         const unavailable = all.filter((e) => e.state === 'unavailable').length;
+        // Stable order (by name) so a light does not jump or vanish when it is switched.
+        const shown = (o.onlyOn ? lightsOn : lights).sort(byName).slice(0, Number(o.limit ?? 6));
         return {
           summary: `${all.length} Entitäten${unavailable ? ` · ${unavailable} nicht verfügbar` : ''}`,
           blocks: [
             {
               type: 'stats',
               items: [
-                { label: 'Lichter an', value: lightsOn.length, tone: lightsOn.length ? 'warn' : 'default' },
+                { label: 'Lichter an', value: `${lightsOn.length}/${lights.length}`, tone: lightsOn.length ? 'warn' : 'default' },
                 { label: 'Offen', value: open.length, tone: open.length ? 'warn' : 'ok' },
                 { label: 'Zuhause', value: people.length ? `${home.length}/${people.length}` : '–' },
               ],
             },
-            ...(lightsOn.length ? [{ type: 'toggles' as const, items: lightsOn.slice(0, 6).map((e) => toToggle(ctx, e)) }] : []),
+            ...(shown.length ? [{ type: 'toggles' as const, items: shown.map((e) => toToggle(ctx, e)) }] : []),
             ...(open.length ? [{ type: 'list' as const, items: open.map((e) => ({ title: e.attributes?.friendly_name ?? e.entity_id, subtitle: 'Offen', status: 'warn' as const })) }] : []),
           ],
         };
+      },
+      // Everything switchable, grouped by kind, plus sensors and people.
+      async detail(ctx) {
+        const all = await states(ctx, true);
+        const groups: [string, string[]][] = [
+          ['Lichter', ['light']],
+          ['Schalter & Steckdosen', ['switch', 'input_boolean', 'fan']],
+          ['Klima', ['climate']],
+          ['Rollläden & Tore', ['cover']],
+          ['Schlösser', ['lock']],
+          ['Medien', ['media_player']],
+          ['Staubsauger', ['vacuum']],
+          ['Szenen & Skripte', ['scene', 'script']],
+        ];
+        const blocks: any[] = [];
+        for (const [title, domains] of groups) {
+          const list = all.filter((e) => domains.includes(domainOf(e.entity_id)) && e.state !== 'unavailable').sort(byName);
+          if (!list.length) continue;
+          blocks.push({ type: 'heading', text: `${title} (${list.length})` });
+          if (domains.includes('scene')) {
+            blocks.push({ type: 'actions', items: list.slice(0, 40).map((e) => ({ ...toggleAction(ctx, e)!, label: e.attributes?.friendly_name ?? e.entity_id })) });
+          } else blocks.push({ type: 'toggles', items: list.slice(0, 60).map((e) => toToggle(ctx, e)) });
+        }
+        const sensors = all
+          .filter((e) => domainOf(e.entity_id) === 'sensor' && e.attributes?.unit_of_measurement && e.state !== 'unavailable' && e.state !== 'unknown')
+          .sort(byName)
+          .slice(0, 24);
+        if (sensors.length) {
+          blocks.push({ type: 'heading', text: 'Sensoren' });
+          blocks.push({ type: 'stats', items: sensors.map((e) => ({ label: e.attributes?.friendly_name ?? e.entity_id, value: e.state, unit: e.attributes?.unit_of_measurement })) });
+        }
+        const people = all.filter((e) => domainOf(e.entity_id) === 'person');
+        if (people.length) {
+          blocks.push({ type: 'heading', text: 'Personen' });
+          blocks.push({ type: 'list', items: people.map((p) => ({ title: p.attributes?.friendly_name ?? p.entity_id, subtitle: STATE_LABEL[p.state] ?? p.state, status: p.state === 'home' ? ('ok' as const) : ('muted' as const) })) });
+        }
+        const unavailable = all.filter((e) => e.state === 'unavailable');
+        if (unavailable.length) {
+          blocks.push({ type: 'heading', text: `Nicht verfügbar (${unavailable.length})` });
+          blocks.push({ type: 'list', items: unavailable.sort(byName).slice(0, 30).map((e) => ({ title: e.attributes?.friendly_name ?? e.entity_id, subtitle: e.entity_id, status: 'bad' as const })) });
+        }
+        return { summary: `${all.length} Entitäten`, blocks };
       },
     },
   },

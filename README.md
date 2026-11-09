@@ -8,6 +8,8 @@ Home-Assistant-Lampen direkt in der Ergebnisliste.
 
 - **Omni-Suche** (`Ctrl K`, `/` oder einfach lostippen): Dienste, Medien, Smart Home, Container, Torrents, Rechner, URLs und Web in einer Liste
 - **30 Integrationen** und ein Plugin-System, das ohne Neubau des Images erweiterbar ist
+- **Frei anordnen**: Widgets per Drag & Drop an jede Stelle eines 12-Spalten-Rasters ziehen und in der Breite ziehen – ohne Lücken zwischen den Reihen
+- **Detailansicht** für jedes Widget (z. B. alle Torrents mit Geschwindigkeitsverlauf, alle Home-Assistant-Geräte nach Bereich)
 - **Mehrere Benutzer**, jeder mit eigenem Dashboard und Theme; Admin verwaltet Dienste und Benutzer
 - **Einmal anmelden** – die Sitzung bleibt bis zu 400 Tage gültig und verlängert sich bei Nutzung (ideal als Browser-Startseite)
 - **Themes**: Nacht, Papier, Fjord, Terminal, Glas – plus Theme-Editor mit Live-Vorschau, Export/Import als JSON

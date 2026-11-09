@@ -1,7 +1,7 @@
 import { ApiError, get, put } from './api.ts';
 import { reportError } from './report.ts';
 import { applyTheme, findTheme } from './themes.ts';
-import type { AppSettings, Dashboard, IntegrationInfo, ServicePublic, ServiceStatus, UserPublic } from './types.ts';
+import { autoPlace, type AppSettings, type Dashboard, type IntegrationInfo, type ServicePublic, type ServiceStatus, type UserPublic } from './types.ts';
 
 interface AppState {
   phase: 'loading' | 'setup' | 'login' | 'ready';
@@ -83,7 +83,9 @@ export async function loadAll() {
   app.integrations = b.integrations;
   app.services = b.services;
   app.status = b.status;
-  app.dashboard = b.dashboard;
+  const { dashboard, changed } = migrateDashboard(b.dashboard);
+  app.dashboard = dashboard;
+  if (changed) saveDashboard();
   app.configError = b.configError;
   applyUserTheme();
   document.title = b.settings.title;
@@ -95,6 +97,22 @@ export async function refreshServices() {
   app.services = s.services;
   app.configError = s.configError;
   app.status = st.status;
+}
+
+/**
+ * Layout 2 = 12-column grid with free positions. Older dashboards (4 columns, no
+ * positions) are converted once; widgets without a position get one.
+ */
+export function migrateDashboard(d: Dashboard): { dashboard: Dashboard; changed: boolean } {
+  const legacy = d.layout !== 2;
+  let changed = legacy;
+  const pages = d.pages.map((p) => {
+    const missing = p.widgets.some((w) => w.x == null || w.y == null);
+    if (!legacy && !missing) return p;
+    changed = true;
+    return { ...p, widgets: autoPlace(p.widgets, legacy) };
+  });
+  return { dashboard: { ...d, layout: 2, pages }, changed };
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined;

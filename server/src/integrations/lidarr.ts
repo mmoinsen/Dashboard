@@ -1,4 +1,4 @@
-import { defineIntegration, limitOption } from './types.ts';
+import { daysOption, defineIntegration, limitOption } from './types.ts';
 import { arrAddFields, arrDefaults, arrHeaders, arrQueue, libraryStatusBadge, posterOf } from './arr.ts';
 import { bestScore } from '../lib/match.ts';
 import { relativeDay } from '../lib/format.ts';
@@ -27,7 +27,7 @@ export default defineIntegration({
       name: 'Kalender',
       description: 'Kommende Alben',
       interval: 900,
-      options: [{ key: 'days', label: 'Tage voraus', type: 'number', default: 30 }, limitOption(6)],
+      options: [daysOption(30), limitOption(6)],
       async fetch(ctx, o) {
         const start = new Date();
         start.setHours(0, 0, 0, 0);

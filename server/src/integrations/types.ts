@@ -34,6 +34,11 @@ export interface WidgetDef {
   options?: FieldDef[];
   size?: number;
   fetch(ctx: Context, options: Record<string, any>): Promise<WidgetData>;
+  /**
+   * Optional bigger view opened from the widget ("Details"). Without it, the detail view
+   * calls fetch() with `detail: true` and a larger `limit`.
+   */
+  detail?(ctx: Context, options: Record<string, any>): Promise<WidgetData>;
 }
 
 export interface SearchQuery {
@@ -97,4 +102,8 @@ export const limitOption = (def = 5, label = 'Anzahl Einträge'): FieldDef => ({
   label,
   type: 'number',
   default: def,
+  min: 1,
+  max: 50,
 });
+
+export const daysOption = (def: number): FieldDef => ({ key: 'days', label: 'Tage voraus', type: 'number', default: def, min: 1, max: 90 });

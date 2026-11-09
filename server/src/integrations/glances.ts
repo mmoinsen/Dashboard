@@ -54,16 +54,25 @@ export default defineIntegration({
           .split(',')
           .map((s) => s.trim())
           .filter(Boolean);
-        const disks = (wanted.length ? fs.filter((d) => wanted.includes(d.mnt_point)) : fs.filter((d) => !/^\/(boot|snap|etc)/.test(d.mnt_point))).slice(0, 4);
+        const disks = (wanted.length && !o.detail ? fs.filter((d) => wanted.includes(d.mnt_point)) : fs.filter((d) => !/^\/(boot|snap|etc)/.test(d.mnt_point))).slice(0, o.detail ? 30 : 4);
         const bars: BarItem[] = [
           { label: 'CPU', value: `${num(quick.cpu, 0)} %${temp ? ` · ${num(temp, 0)} °C` : ''}`, percent: quick.cpu, tone: level(quick.cpu) },
           { label: 'RAM', value: `${num(quick.mem, 0)} %`, percent: quick.mem, tone: level(quick.mem) },
           ...disks.map((d) => ({ label: d.mnt_point, value: `${bytes(d.used)} / ${bytes(d.size)}`, percent: d.percent, tone: level(d.percent) })),
         ];
         const up = typeof uptime === 'string' ? uptime : uptime?.seconds ? duration(uptime.seconds) : undefined;
+        const blocks: any[] = [{ type: 'bars', items: bars }];
+        if (o.detail) {
+          if (load) blocks.unshift({ type: 'stats', items: [{ label: 'Load 1 min', value: num(load.min1, 2) }, { label: '5 min', value: num(load.min5, 2) }, { label: '15 min', value: num(load.min15, 2) }, { label: 'Kerne', value: load.cpucore ?? '–' }] });
+          const temps2 = sensors.filter((t) => t.unit === 'C' || /temp/.test(t.type ?? ''));
+          if (temps2.length) {
+            blocks.push({ type: 'heading', text: 'Temperaturen' });
+            blocks.push({ type: 'stats', items: temps2.slice(0, 16).map((t) => ({ label: t.label, value: num(t.value, 0), unit: '°C', tone: t.value > 80 ? 'bad' : t.value > 65 ? 'warn' : 'default' })) });
+          }
+        }
         return {
           summary: [up ? `Uptime ${up}` : '', load ? `Load ${num(load.min1, 2)}` : ''].filter(Boolean).join(' · '),
-          blocks: [{ type: 'bars', items: bars }],
+          blocks,
         };
       },
     },

@@ -76,6 +76,7 @@ export type Block =
   | { type: 'kv'; items: { label: string; value: string }[] }
   | { type: 'text'; text: string; tone?: Tone }
   | { type: 'actions'; items: ActionRef[] }
+  | { type: 'heading'; text: string }
   | { type: 'clock'; seconds?: boolean; timezone?: string; showDate?: boolean }
   | { type: 'links'; items: { title: string; url: string; icon?: string; subtitle?: string }[] };
 
@@ -124,6 +125,9 @@ export interface FieldDef {
   placeholder?: string;
   help?: string;
   options?: { value: string; label: string }[];
+  /** Bounds for number fields (enforced in the form and on the server). */
+  min?: number;
+  max?: number;
 }
 
 export interface WidgetInfo {
@@ -132,6 +136,8 @@ export interface WidgetInfo {
   description?: string;
   interval: number;
   options: FieldDef[];
+  /** Has a dedicated detail view (otherwise the detail view shows more of the same). */
+  hasDetail?: boolean;
   /** Default column span (1-4). */
   size?: number;
 }
@@ -182,8 +188,12 @@ export interface WidgetInstance {
   widget: string;
   title?: string;
   options?: Record<string, unknown>;
-  /** Column span 1..4 */
+  /** Width in columns of the 12-column grid. */
   w?: number;
+  /** Start column 0..11. */
+  x?: number;
+  /** Ordering key: smaller y is placed first (see shared/layout.ts). */
+  y?: number;
 }
 
 export interface DashboardPage {
@@ -195,6 +205,8 @@ export interface DashboardPage {
 }
 
 export interface Dashboard {
+  /** 2 = 12-column grid with free x positions. Older dashboards used 4 columns. */
+  layout?: number;
   pages: DashboardPage[];
 }
 

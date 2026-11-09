@@ -125,6 +125,24 @@ export default defineIntegration({
           ],
         };
       },
+      async detail(ctx) {
+        const base = await this.fetch(ctx, {});
+        if (ctx.service.config.version === 'v5') return base;
+        const [domains, clients] = await Promise.all([
+          v6<any>(ctx, '/api/stats/top_domains?blocked=true&count=10').catch(() => null),
+          v6<any>(ctx, '/api/stats/top_clients?count=10').catch(() => null),
+        ]);
+        const blocks = [...base.blocks];
+        if (domains?.domains?.length) {
+          blocks.push({ type: 'heading', text: 'Meistblockierte Domains' });
+          blocks.push({ type: 'list', items: domains.domains.map((d: any) => ({ title: d.domain, meta: `${num(d.count)}×` })) });
+        }
+        if (clients?.clients?.length) {
+          blocks.push({ type: 'heading', text: 'Aktivste Clients' });
+          blocks.push({ type: 'list', items: clients.clients.map((c: any) => ({ title: c.name || c.ip, subtitle: c.name ? c.ip : undefined, meta: `${num(c.count)} Anfragen` })) });
+        }
+        return { ...base, blocks };
+      },
     },
   },
 

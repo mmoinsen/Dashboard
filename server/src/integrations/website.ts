@@ -9,7 +9,7 @@ export default defineIntegration({
   description: 'Beliebiger Dienst als Link mit Erreichbarkeits-Check',
   fields: [
     { key: 'healthPath', label: 'Pfad für den Check', type: 'string', default: '/', help: 'z. B. /health oder /api/ping' },
-    { key: 'expectStatus', label: 'Erwarteter Statuscode (leer = 2xx/3xx)', type: 'number' },
+    { key: 'expectStatus', label: 'Erwarteter Statuscode (leer = 2xx/3xx)', type: 'number', min: 100, max: 599 },
   ],
   defaultWidget: 'status',
 

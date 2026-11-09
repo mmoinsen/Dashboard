@@ -31,7 +31,7 @@ function displayTitle(item: any) {
 
 /** Shared by Jellyfin and Emby (same API). */
 export function jellyfinLike(id: 'jellyfin' | 'emby', name: string) {
-  return defineIntegration({
+  const integration = defineIntegration({
     id,
     name,
     icon: id,
@@ -228,6 +228,29 @@ export function jellyfinLike(id: 'jellyfin' | 'emby', name: string) {
       },
     },
   });
+
+  /** Detail view for all widgets: streams, continue watching, library, recently added. */
+  const detail = async (ctx: Context) => {
+    const w = integration.widgets!;
+    const [sessions, stats, latest, resume] = await Promise.all([
+      w.sessions.fetch(ctx, {}),
+      w.stats.fetch(ctx, {}).catch(() => null),
+      w.latest.fetch(ctx, { limit: 16, types: 'Movie,Series' }).catch(() => null),
+      ctx.service.config.userId ? w.resume.fetch(ctx, { limit: 8 }).catch(() => null) : Promise.resolve(null),
+    ]);
+    return {
+      summary: sessions.summary,
+      blocks: [
+        { type: 'heading' as const, text: 'Läuft gerade' },
+        ...sessions.blocks,
+        ...(resume ? [{ type: 'heading' as const, text: 'Weiterschauen' }, ...resume.blocks] : []),
+        ...(stats ? [{ type: 'heading' as const, text: 'Bibliothek' }, ...stats.blocks] : []),
+        ...(latest ? [{ type: 'heading' as const, text: 'Zuletzt hinzugefügt' }, ...latest.blocks] : []),
+      ],
+    };
+  };
+  for (const widget of Object.values(integration.widgets!)) widget.detail = detail;
+  return integration;
 }
 
 export default jellyfinLike('jellyfin', 'Jellyfin');

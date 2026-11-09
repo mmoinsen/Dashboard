@@ -113,9 +113,9 @@ export const weather = defineIntegration({
       interval: 900,
       options: [
         { key: 'name', label: 'Ort (Anzeige)', type: 'string', placeholder: 'Berlin' },
-        { key: 'latitude', label: 'Breitengrad', type: 'number', required: true, placeholder: '52.52' },
-        { key: 'longitude', label: 'Längengrad', type: 'number', required: true, placeholder: '13.41' },
-        { key: 'days', label: 'Tage Vorhersage', type: 'number', default: 4 },
+        { key: 'latitude', label: 'Breitengrad', type: 'number', required: true, placeholder: '52.52', min: -90, max: 90 },
+        { key: 'longitude', label: 'Längengrad', type: 'number', required: true, placeholder: '13.41', min: -180, max: 180 },
+        { key: 'days', label: 'Tage Vorhersage', type: 'number', default: 4, min: 1, max: 7 },
       ],
       async fetch(ctx, o) {
         if (o.latitude == null || o.longitude == null || o.latitude === '' || o.longitude === '') {

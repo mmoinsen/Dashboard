@@ -1,4 +1,5 @@
-import { defineIntegration, limitOption } from './types.ts';
+import { daysOption, defineIntegration, limitOption } from './types.ts';
+import type { Context } from './types.ts';
 import { arrAddFields, arrDefaults, arrHeaders, arrQueue, libraryStatusBadge, posterOf } from './arr.ts';
 import { bestScore } from '../lib/match.ts';
 import { episodeCode, relativeDay, timeOfDay } from '../lib/format.ts';
@@ -6,7 +7,27 @@ import type { ListItem, SearchResult } from '../shared/types.ts';
 
 const API = '/api/v3';
 
-export default defineIntegration({
+/** Detail view shared by all sonarr widgets: statistics, longer calendar, queue, actions. */
+async function overviewDetail(ctx: Context) {
+  const w = integration.widgets!;
+  const [stats, cal, queue] = await Promise.all([
+    w.stats.fetch(ctx, {}).catch((e) => ({ blocks: [{ type: 'text' as const, text: `Statistik: ${e.message}`, tone: 'warn' as const }] })),
+    w.calendar.fetch(ctx, { days: 14, limit: 30 }),
+    w.queue.fetch(ctx, { limit: 25 }).catch(() => null),
+  ]);
+  return {
+    summary: cal.summary,
+    blocks: [
+      ...stats.blocks,
+      { type: 'heading' as const, text: 'Kalender' },
+      ...cal.blocks,
+      ...(queue ? [{ type: 'heading' as const, text: queue.summary ?? 'Warteschlange' }, ...queue.blocks] : []),
+      { type: 'actions' as const, items: [{ service: ctx.service.id, action: 'searchMissing', label: 'Fehlende Episoden suchen' }] },
+    ],
+  };
+}
+
+const integration = defineIntegration({
   id: 'sonarr',
   name: 'Sonarr',
   icon: 'sonarr',
@@ -27,7 +48,7 @@ export default defineIntegration({
       name: 'Kalender',
       description: 'Kommende Episoden',
       interval: 300,
-      options: [{ key: 'days', label: 'Tage voraus', type: 'number', default: 7 }, limitOption(6)],
+      options: [daysOption(7), limitOption(6)],
       async fetch(ctx, o) {
         const start = new Date();
         start.setHours(0, 0, 0, 0);
@@ -168,3 +189,7 @@ export default defineIntegration({
     },
   },
 });
+
+for (const w of Object.values(integration.widgets!)) w.detail = overviewDetail;
+
+export default integration;
