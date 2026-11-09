@@ -5,9 +5,14 @@ import { bytes, duration, speedParts } from '../lib/format.ts';
 import { bestScore } from '../lib/match.ts';
 import type { ListItem, SearchResult, Tone } from '../shared/types.ts';
 
+/** qBittorrent >= 5.2 accepts an API key (Bearer); older versions need the cookie login. */
+function usesApiKey(ctx: Context) {
+  return Boolean(ctx.service.config.apiKey);
+}
+
 async function login(ctx: Context) {
   const { username, password } = ctx.service.config;
-  if (!username) return; // auth bypass for local networks
+  if (usesApiKey(ctx) || !username) return; // API key, or auth bypass for local networks
   const res = await ctx.http.request<Response>('/api/v2/auth/login', {
     method: 'POST',
     body: new URLSearchParams({ username, password: password ?? '' }),
@@ -32,7 +37,7 @@ async function qb<T = any>(ctx: Context, path: string, form?: Record<string, str
   try {
     return await doReq();
   } catch (err) {
-    if (err instanceof HttpError && (err.status === 403 || err.status === 401)) {
+    if (!usesApiKey(ctx) && err instanceof HttpError && (err.status === 403 || err.status === 401)) {
       await login(ctx);
       return doReq();
     }
@@ -77,9 +82,16 @@ export default defineIntegration({
   website: 'https://www.qbittorrent.org',
   bang: 'qb',
   fields: [
-    { ...usernameField, help: 'Leer lassen, wenn Authentifizierung für dein Netz deaktiviert ist' },
+    {
+      key: 'apiKey',
+      label: 'API-Key (ab qBittorrent 5.2)',
+      type: 'secret',
+      help: 'Optionen → WebUI → API-Key. Wenn gesetzt, werden Benutzername/Passwort nicht benötigt.',
+    },
+    { ...usernameField, help: 'Für ältere Versionen ohne API-Key. Leer lassen, wenn die Authentifizierung für dein Netz deaktiviert ist.' },
     passwordField,
   ],
+  headers: (c) => (c.apiKey ? { Authorization: `Bearer ${c.apiKey}` } : {}),
   defaultWidget: 'transfer',
 
   async health(ctx) {

@@ -56,8 +56,11 @@ services:
     name: qBittorrent
     # Läuft qBittorrent im Netzwerk von gluetun, ist es über den gluetun-Container erreichbar:
     url: http://gluetun:8080
-    username: admin
-    password: ${QBIT_PASSWORD}
+    # ab qBittorrent 5.2: API-Key (Optionen → WebUI → API-Key)
+    apiKey: ${QBIT_API_KEY}
+    # ältere Versionen: stattdessen Benutzername/Passwort
+    # username: admin
+    # password: ${QBIT_PASSWORD}
 
   - id: flaresolverr
     type: flaresolverr
