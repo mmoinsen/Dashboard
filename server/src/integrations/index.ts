@@ -116,6 +116,8 @@ export function describe(def: IntegrationDef): IntegrationInfo {
     category: def.category,
     description: def.description,
     website: def.website,
+    urlPlaceholder: def.urlPlaceholder,
+    urlHelp: def.urlHelp,
     fields: def.fields ?? [],
     widgets: Object.entries(def.widgets ?? {}).map(([id, w]) => ({
       id,

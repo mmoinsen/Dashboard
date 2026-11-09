@@ -145,7 +145,13 @@ export function describeError(err: unknown): string {
   const e = err as any;
   const code = e?.cause?.code ?? e?.cause?.errors?.[0]?.code ?? e?.code;
   if (e?.name === 'TimeoutError' || code === 'UND_ERR_CONNECT_TIMEOUT') return 'Zeitüberschreitung';
-  if (code === 'ECONNREFUSED') return 'Verbindung abgelehnt';
+  if (code === 'ECONNREFUSED') {
+    // Inside the Kompass container, localhost is Kompass itself – the most common mistake.
+    if (/\/\/(localhost|127\.0\.0\.1|\[::1\])[:/]/i.test(String(e?.url ?? ''))) {
+      return 'Verbindung abgelehnt – „localhost“ ist im Container Kompass selbst. Nutze die IP des Servers oder den Containernamen';
+    }
+    return 'Verbindung abgelehnt – läuft der Dienst und ist der Port richtig/freigegeben?';
+  }
   if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return 'Host nicht gefunden';
   if (code === 'ENOENT') return 'Socket nicht gefunden';
   if (typeof code === 'string' && code.includes('CERT')) return 'TLS-Zertifikat ungültig (Option „TLS ignorieren“)';

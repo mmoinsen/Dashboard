@@ -29,9 +29,18 @@ export default defineIntegration({
   icon: 'gluetun',
   category: 'network',
   description: 'VPN-Status, öffentliche IP, Standort und weitergeleiteter Port (Control-Server, Port 8000)',
-  website: 'https://github.com/qdm12/gluetun',
+  website: 'https://github.com/qdm12/gluetun-wiki/blob/main/setup/advanced/control-server.md',
+  urlPlaceholder: 'http://gluetun:8000',
+  urlHelp:
+    'Der Control-Server von Gluetun läuft im Container auf Port 8000 (nicht 8888 = HTTP-Proxy, 8388 = Shadowsocks). ' +
+    'Im selben Docker-Netz: http://gluetun:8000. Über die Server-IP muss der Port in Gluetuns compose freigegeben sein, z. B. "8000:8000".',
   fields: [
-    { key: 'apiKey', label: 'API-Key (optional)', type: 'secret', help: 'Falls der Control-Server mit auth (apikey) abgesichert ist' },
+    {
+      key: 'apiKey',
+      label: 'API-Key',
+      type: 'secret',
+      help: 'Seit Gluetun 3.40 braucht der Control-Server eine Rolle mit API-Key für: GET /v1/vpn/status, GET /v1/publicip/ip, GET /v1/portforward (optional PUT /v1/vpn/status für „Neu verbinden“).',
+    },
     { key: 'username', label: 'Benutzer (Basic Auth, optional)', type: 'string' },
     { key: 'password', label: 'Passwort (Basic Auth, optional)', type: 'secret' },
   ],

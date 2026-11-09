@@ -62,6 +62,10 @@ export interface IntegrationDef {
   category: 'media' | 'downloads' | 'smarthome' | 'network' | 'system' | 'productivity' | 'other';
   description: string;
   website?: string;
+  /** Example for the URL field, e.g. "http://gluetun:8000". */
+  urlPlaceholder?: string;
+  /** Integration specific hint under the URL field (port, path, ...). */
+  urlHelp?: string;
   /** Configuration fields shown in the service form (url is added automatically). */
   fields?: FieldDef[];
   /** False for integrations without a base URL (e.g. Docker via socket). */

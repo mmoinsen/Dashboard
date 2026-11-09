@@ -149,6 +149,8 @@ export interface IntegrationInfo {
   category: string;
   description: string;
   website?: string;
+  urlPlaceholder?: string;
+  urlHelp?: string;
   fields: FieldDef[];
   widgets: WidgetInfo[];
   searchable: boolean;

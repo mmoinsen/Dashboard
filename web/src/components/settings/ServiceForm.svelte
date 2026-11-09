@@ -128,8 +128,9 @@
       {#if def.needsUrl}
         <label class="field">
           <span>Interne URL *</span>
-          <input class="input" type="url" required placeholder="http://sonarr:8989" bind:value={url} />
-          <small>So erreicht der Kompass-Container den Dienst (z. B. Containername im selben Docker-Netz).</small>
+          <input class="input" type="url" required placeholder={def.urlPlaceholder ?? `http://${def.id}:port`} bind:value={url} />
+          <small>So erreicht der Kompass-Container den Dienst, z. B. über den Containernamen im selben Docker-Netz oder die IP des Servers. Nicht „localhost“ – das wäre Kompass selbst.</small>
+          {#if def.urlHelp}<small class="url-help">{def.urlHelp}</small>{/if}
         </label>
         <label class="field">
           <span>Öffentliche URL (optional)</span>
@@ -238,6 +239,12 @@
   .intro p {
     margin: 0;
     font-size: 14px;
+  }
+  .url-help {
+    color: var(--text);
+    background: var(--surface-2);
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
   }
   .tls {
     margin-top: 26px;
