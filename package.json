@@ -1,0 +1,16 @@
+{
+  "name": "kompass",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Self-hosted homelab dashboard with omni-search and a plugin-based integration system",
+  "type": "module",
+  "workspaces": ["server", "web"],
+  "scripts": {
+    "dev": "npm run dev -w server & npm run dev -w web",
+    "build": "npm run build -w web",
+    "start": "npm run start -w server",
+    "check": "npm run check -w server && npm run check -w web",
+    "test": "npm run test -w server"
+  },
+  "engines": { "node": ">=22.18" }
+}

@@ -1,0 +1,24 @@
+services:
+  kompass:
+    build: .
+    # image: ghcr.io/<dein-name>/kompass:latest
+    container_name: kompass
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config:/config
+      # Optional: Docker-Widget (Container-Status, Start/Stopp). Lesend reicht für die Anzeige.
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - TZ=Europe/Berlin
+      # Geheimnisse für kompass.yaml, z. B.:
+      # - SONARR_API_KEY=...
+      # Optional: SSO über Reverse Proxy (Authelia/Authentik) – Header mit Benutzername
+      # - KOMPASS_TRUSTED_HEADER=Remote-User
+    # Im selben Netzwerk wie deine Dienste, damit http://sonarr:8989 usw. funktioniert:
+    # networks: [media]
+
+# networks:
+#   media:
+#     external: true

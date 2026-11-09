@@ -1,0 +1,111 @@
+# Kompass – Beispielkonfiguration
+# Kopiere diese Datei nach ./config/kompass.yaml. Sie ist optional: Alles hier lässt sich
+# auch in der Weboberfläche einrichten. Dienste aus dieser Datei erscheinen dort als
+# "kompass.yaml" und sind nur hier änderbar. Änderungen werden automatisch neu geladen.
+#
+# ${VARIABLE} bzw. ${VARIABLE:-standard} wird durch Umgebungsvariablen ersetzt –
+# so bleiben API-Keys aus der Datei heraus (z. B. per .env in docker-compose).
+
+settings:
+  title: Kompass
+  # Standard-Ort für das Wetter-Widget neuer Benutzer
+  weather: { latitude: 52.52, longitude: 13.41, name: Berlin }
+  search:
+    defaultEngine: google # google | duckduckgo | bing | ... (siehe engines)
+    suggestions: true
+
+services:
+  # --- Medien ---
+  - id: jellyfin
+    type: jellyfin
+    url: http://jellyfin:8096 # so erreicht der Kompass-Container den Dienst
+    publicUrl: https://jellyfin.example.com # für Links im Browser (optional)
+    apiKey: ${JELLYFIN_API_KEY}
+    # userId: ...  # optional: "Weiterschauen" + Fortschritt in der Suche
+
+  - id: sonarr
+    type: sonarr
+    url: http://sonarr:8989
+    apiKey: ${SONARR_API_KEY}
+    # qualityProfileId: 1        # für "Hinzufügen" aus der Suche (Standard: erstes Profil)
+    # rootFolder: /tv            # Standard: erster Root-Ordner
+
+  - id: radarr
+    type: radarr
+    url: http://radarr:7878
+    apiKey: ${RADARR_API_KEY}
+
+  - id: lidarr
+    type: lidarr
+    url: http://lidarr:8686
+    apiKey: ${LIDARR_API_KEY}
+
+  - id: bazarr
+    type: bazarr
+    url: http://bazarr:6767
+    apiKey: ${BAZARR_API_KEY}
+
+  # --- Downloads ---
+  - id: prowlarr
+    type: prowlarr
+    url: http://prowlarr:9696
+    apiKey: ${PROWLARR_API_KEY}
+
+  - id: qbittorrent
+    type: qbittorrent
+    name: qBittorrent
+    # Läuft qBittorrent im Netzwerk von gluetun, ist es über den gluetun-Container erreichbar:
+    url: http://gluetun:8080
+    username: admin
+    password: ${QBIT_PASSWORD}
+
+  - id: flaresolverr
+    type: flaresolverr
+    url: http://flaresolverr:8191
+
+  # --- Netzwerk ---
+  - id: gluetun
+    type: gluetun
+    url: http://gluetun:8000 # Control-Server
+    # apiKey: ${GLUETUN_API_KEY}
+
+  - id: pihole
+    type: pihole
+    name: Pi-hole
+    url: http://pihole
+    version: v6 # oder v5
+    password: ${PIHOLE_PASSWORD}
+
+  - id: nginx
+    type: nginx
+    url: http://nginx
+    statusPath: /nginx_status # benötigt stub_status in der nginx-Konfiguration
+
+  # --- Smart Home ---
+  - id: homeassistant
+    type: homeassistant
+    name: Home Assistant
+    url: http://homeassistant:8123
+    token: ${HASS_TOKEN}
+
+  # --- Produktivität ---
+  - id: livesync
+    type: obsidian-livesync
+    name: Obsidian LiveSync
+    url: http://couchdb:5984
+    username: ${COUCHDB_USER}
+    password: ${COUCHDB_PASSWORD}
+    database: obsidian
+
+  # --- System ---
+  - id: docker
+    type: docker
+    endpoint: unix:///var/run/docker.sock # oder http://docker-socket-proxy:2375
+
+  # Beliebiger Dienst ohne eigene Integration: Link + Online-Check
+  # - id: router
+  #   type: website
+  #   name: Router
+  #   url: http://192.168.1.1
+  #   icon: mdi-router-wireless
+  #   insecure: true   # selbstsigniertes Zertifikat
