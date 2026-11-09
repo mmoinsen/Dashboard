@@ -1,5 +1,6 @@
 <script lang="ts">
   import { post } from '../lib/api.ts';
+  import { uid } from '../lib/id.ts';
   import { app, navigate, saveDashboard } from '../lib/store.svelte.ts';
   import Glyph from './Glyph.svelte';
 
@@ -17,7 +18,7 @@
   function addPage() {
     const name = prompt('Name der neuen Seite', 'Neue Seite');
     if (!name || !app.dashboard) return;
-    const id = crypto.randomUUID().slice(0, 8);
+    const id = uid().slice(0, 8);
     app.dashboard.pages.push({ id, name, showSearch: false, showServices: false, widgets: [] });
     saveDashboard();
     navigate(`/p/${id}`);

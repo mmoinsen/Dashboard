@@ -3,6 +3,7 @@
   import { app, integration, navigate, openUrl, saveUserSettings, toast } from '../lib/store.svelte.ts';
   import { PRESETS } from '../lib/themes.ts';
   import { CATEGORY_BANGS, calculate, looksLikeUrl, parseQuery, webIntent, type SearchResult } from '../lib/types.ts';
+  import { copyText } from '../lib/id.ts';
   import ActionButton from './ActionButton.svelte';
   import Glyph from './Glyph.svelte';
   import Icon from './Icon.svelte';
@@ -172,9 +173,9 @@
         kind: 'command',
         score: 0.99,
         glyph: 'calculator',
-        exec: () => {
-          navigator.clipboard?.writeText(String(v));
-          toast('Ergebnis kopiert', 'ok');
+        exec: async () => {
+          const ok = await copyText(String(v));
+          toast(ok ? 'Ergebnis kopiert' : 'Kopieren nicht möglich', ok ? 'ok' : 'bad');
         },
       });
     }

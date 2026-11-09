@@ -2,6 +2,7 @@
   import { app, applyUserTheme, saveUserSettings, toast } from '../../lib/store.svelte.ts';
   import { FONT_OPTIONS, PRESETS, applyTheme, findTheme } from '../../lib/themes.ts';
   import type { Theme, ThemeTokens } from '../../lib/types.ts';
+  import { copyText } from '../../lib/id.ts';
   import Glyph from '../Glyph.svelte';
 
   const custom = $derived(app.user?.settings.customThemes ?? []);
@@ -37,9 +38,9 @@
     await saveUserSettings({ customThemes: custom.filter((x) => x.id !== t.id), theme: activeId === t.id ? 'nacht' : app.user?.settings.theme });
   }
 
-  function exportTheme(t: Theme) {
-    navigator.clipboard?.writeText(JSON.stringify({ name: t.name, tokens: t.tokens }, null, 2));
-    toast('Theme als JSON in die Zwischenablage kopiert', 'ok');
+  async function exportTheme(t: Theme) {
+    const ok = await copyText(JSON.stringify({ name: t.name, tokens: t.tokens }, null, 2));
+    toast(ok ? 'Theme als JSON in die Zwischenablage kopiert' : 'Kopieren nicht möglich', ok ? 'ok' : 'bad');
   }
 
   async function importTheme() {

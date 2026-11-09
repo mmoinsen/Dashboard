@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { app, integration, navigate } from '../lib/store.svelte.ts';
+  import { uid } from '../lib/id.ts';
+  import { app, integration, navigate, toast } from '../lib/store.svelte.ts';
   import type { WidgetInstance } from '../lib/types.ts';
   import FieldInput from './FieldInput.svelte';
   import Icon from './Icon.svelte';
@@ -41,11 +42,19 @@
 
   function save() {
     if (!source || !winfo) return;
+    try {
+      submit(source, winfo.id);
+    } catch (e) {
+      toast(`Widget konnte nicht gespeichert werden: ${(e as Error).message}`, 'bad');
+    }
+  }
+
+  function submit(source: Source, widget: string) {
     onsave({
-      id: initial?.id ?? crypto.randomUUID(),
+      id: initial?.id ?? uid(),
       service: source.service,
       builtin: source.builtin || undefined,
-      widget: winfo.id,
+      widget,
       title: title.trim() || undefined,
       options: Object.fromEntries(Object.entries(options).filter(([, v]) => v !== '' && v != null)),
       w: width,
