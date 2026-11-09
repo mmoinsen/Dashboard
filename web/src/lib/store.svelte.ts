@@ -12,6 +12,8 @@ interface AppState {
   status: Record<string, ServiceStatus>;
   dashboard: Dashboard | null;
   configError: string | null;
+  /** KI-Suche: available = enabled by an admin and an API key is set. */
+  ai: { available: boolean; model: string } | null;
   editing: boolean;
   searchOpen: boolean;
   searchSeed: string;
@@ -27,6 +29,7 @@ export const app: AppState = $state({
   status: {},
   dashboard: null,
   configError: null,
+  ai: null,
   editing: false,
   searchOpen: false,
   searchSeed: '',
@@ -87,6 +90,7 @@ export async function loadAll() {
   app.dashboard = dashboard;
   if (changed) saveDashboard();
   app.configError = b.configError;
+  app.ai = b.ai ?? null;
   applyUserTheme();
   document.title = b.settings.title;
   app.phase = 'ready';

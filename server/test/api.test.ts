@@ -99,3 +99,24 @@ test('services: secrets are stored encrypted and never returned', async () => {
   assert.equal(r.json().data.blocks[0].type, 'clock');
   await app.close();
 });
+
+test('AI search: disabled by default, key is stored but never returned', async () => {
+  const app = await setup();
+  const r0 = await app.inject({ method: 'POST', url: '/api/auth/setup', payload: { username: 'admin', password: 'geheim123' } });
+  const cookie = cookieOf(r0);
+  let r = await app.inject({ method: 'POST', url: '/api/ai/ask', headers: { cookie }, payload: { question: 'hallo' } });
+  assert.equal(r.statusCode, 403, 'not enabled yet');
+
+  r = await app.inject({ method: 'PUT', url: '/api/ai/settings', headers: { cookie }, payload: { ai: { enabled: true, apiKey: 'sk-ant-supersecret', model: 'claude-opus-5-5' } } });
+  assert.equal(r.json().ai.hasKey, true);
+  assert.equal(r.json().ai.keySource, 'ui');
+  assert.ok(!r.body.includes('supersecret'));
+  r = await app.inject({ url: '/api/bootstrap', headers: { cookie } });
+  assert.equal(r.json().ai.available, true);
+  assert.ok(!r.body.includes('supersecret'));
+
+  // unknown models are ignored
+  r = await app.inject({ method: 'PUT', url: '/api/ai/settings', headers: { cookie }, payload: { ai: { model: 'gpt-x' } } });
+  assert.equal(r.json().ai.model, 'claude-opus-5-5');
+  await app.close();
+});

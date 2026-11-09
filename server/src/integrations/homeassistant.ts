@@ -1,7 +1,7 @@
 import { defineIntegration } from './types.ts';
 import type { Context } from './types.ts';
 import { bestScore, normalize } from '../lib/match.ts';
-import type { ActionRef, SearchResult, StatItem, ToggleItem } from '../shared/types.ts';
+import type { ActionRef, FieldDef, SearchResult, StatItem, ToggleItem } from '../shared/types.ts';
 
 /** Words people type in German/English, mapped to Home Assistant domains. */
 const DOMAIN_ALIASES: Record<string, string[]> = {
@@ -147,6 +147,36 @@ function toToggle(ctx: Context, e: any): ToggleItem {
   return item;
 }
 
+const SENSOR_DOMAINS = ['sensor', 'binary_sensor', 'person', 'weather', 'sun', 'device_tracker'];
+
+/** Stat tiles for sensors, toggles for everything switchable – in the order the user picked. */
+function entityBlocks(ctx: Context, ids: string[], all: any[]) {
+  const byId = new Map(all.map((e) => [e.entity_id, e]));
+  const picked = ids.map((id) => byId.get(id)).filter(Boolean);
+  const sensors = picked.filter((e) => SENSOR_DOMAINS.includes(domainOf(e.entity_id)));
+  const toggles = picked.filter((e) => !SENSOR_DOMAINS.includes(domainOf(e.entity_id)));
+  const blocks: any[] = [];
+  if (sensors.length) {
+    blocks.push({
+      type: 'stats',
+      items: sensors.map((e): StatItem => ({ label: e.attributes?.friendly_name ?? e.entity_id, value: STATE_LABEL[e.state] ?? e.state, unit: e.attributes?.unit_of_measurement })),
+    });
+  }
+  if (toggles.length) blocks.push({ type: 'toggles', items: toggles.map((e) => toToggle(ctx, e)) });
+  const missing = ids.filter((id) => !byId.has(id));
+  if (missing.length) blocks.push({ type: 'text', text: `Nicht gefunden: ${missing.join(', ')}`, tone: 'warn' });
+  return { blocks, toggles };
+}
+
+const entityPicker = (label: string, required: boolean, help: string): FieldDef => ({
+  key: 'entities',
+  label,
+  type: 'multiselect',
+  source: 'entities',
+  required,
+  help,
+});
+
 async function states(ctx: Context, fresh = false): Promise<any[]> {
   if (fresh) ctx.cache.delete(`${ctx.service.id}:states`);
   return ctx.cache.get(`${ctx.service.id}:states`, 3000, () => ctx.http.get<any[]>('/api/states'));
@@ -183,42 +213,13 @@ export default defineIntegration({
   widgets: {
     entities: {
       name: 'Entitäten',
-      description: 'Ausgewählte Schalter, Lichter, Thermostate und Sensoren',
+      description: 'Frei gewählte Schalter, Lichter, Thermostate und Sensoren',
       interval: 5,
-      options: [
-        {
-          key: 'entities',
-          label: 'Entitäten',
-          type: 'text',
-          required: true,
-          placeholder: 'light.wohnzimmer, switch.kaffeemaschine, sensor.aussentemperatur',
-          help: 'Entity-IDs, durch Komma oder Zeilenumbruch getrennt',
-        },
-      ],
+      options: [entityPicker('Entitäten', true, 'Reihenfolge = Reihenfolge im Widget. Sensoren erscheinen als Kacheln, alles Schaltbare als Schalter.')],
       async fetch(ctx, o) {
         const ids = parseEntityList(o.entities);
-        const all = await states(ctx);
-        const byId = new Map(all.map((e) => [e.entity_id, e]));
-        const picked = ids.map((id) => byId.get(id)).filter(Boolean);
-        const toggles = picked.filter((e) => !['sensor', 'binary_sensor', 'person', 'weather'].includes(domainOf(e.entity_id)));
-        const sensors = picked.filter((e) => ['sensor', 'binary_sensor', 'person', 'weather'].includes(domainOf(e.entity_id)));
-        const blocks: any[] = [];
-        if (sensors.length) {
-          blocks.push({
-            type: 'stats',
-            items: sensors.map(
-              (e): StatItem => ({
-                label: e.attributes?.friendly_name ?? e.entity_id,
-                value: STATE_LABEL[e.state] ?? e.state,
-                unit: e.attributes?.unit_of_measurement,
-              }),
-            ),
-          });
-        }
-        if (toggles.length) blocks.push({ type: 'toggles', items: toggles.map((e) => toToggle(ctx, e)) });
-        if (!ids.length) blocks.push({ type: 'text', text: 'Bitte Entitäten in den Widget-Einstellungen auswählen.', tone: 'muted' });
-        const missing = ids.filter((id) => !byId.has(id));
-        if (missing.length) blocks.push({ type: 'text', text: `Nicht gefunden: ${missing.join(', ')}`, tone: 'warn' });
+        if (!ids.length) return { blocks: [{ type: 'text', text: 'Bitte Entitäten in den Widget-Einstellungen auswählen.', tone: 'muted' }] };
+        const { blocks, toggles } = entityBlocks(ctx, ids, await states(ctx));
         const onCount = toggles.filter(isOn).length;
         return { summary: toggles.length ? `${onCount} von ${toggles.length} an` : undefined, blocks };
       },
@@ -228,8 +229,11 @@ export default defineIntegration({
       description: 'Lichter, offene Fenster, wer ist zuhause',
       interval: 10,
       options: [
-        { key: 'limit', label: 'Anzahl Lichter', type: 'number', default: 6, min: 0, max: 50 },
-        { key: 'onlyOn', label: 'Nur eingeschaltete Lichter zeigen', type: 'boolean', default: false },
+        { key: 'showStats', label: 'Kennzahlen zeigen (Lichter an, offen, zuhause)', type: 'boolean', default: true },
+        entityPicker('Angezeigte Entitäten', false, 'Leer = automatisch alle Lichter. Mit Auswahl zeigt das Widget genau diese Entitäten in dieser Reihenfolge.'),
+        { key: 'limit', label: 'Anzahl Lichter (nur ohne Auswahl)', type: 'number', default: 6, min: 0, max: 50 },
+        { key: 'onlyOn', label: 'Nur eingeschaltete Lichter (nur ohne Auswahl)', type: 'boolean', default: false },
+        { key: 'showOpen', label: 'Offene Fenster/Türen auflisten', type: 'boolean', default: true },
       ],
       async fetch(ctx, o) {
         const all = await states(ctx);
@@ -239,23 +243,29 @@ export default defineIntegration({
         const people = all.filter((e) => domainOf(e.entity_id) === 'person');
         const home = people.filter((p) => p.state === 'home');
         const unavailable = all.filter((e) => e.state === 'unavailable').length;
-        // Stable order (by name) so a light does not jump or vanish when it is switched.
-        const shown = (o.onlyOn ? lightsOn : lights).sort(byName).slice(0, Number(o.limit ?? 6));
-        return {
-          summary: `${all.length} Entitäten${unavailable ? ` · ${unavailable} nicht verfügbar` : ''}`,
-          blocks: [
-            {
-              type: 'stats',
-              items: [
-                { label: 'Lichter an', value: `${lightsOn.length}/${lights.length}`, tone: lightsOn.length ? 'warn' : 'default' },
-                { label: 'Offen', value: open.length, tone: open.length ? 'warn' : 'ok' },
-                { label: 'Zuhause', value: people.length ? `${home.length}/${people.length}` : '–' },
-              ],
-            },
-            ...(shown.length ? [{ type: 'toggles' as const, items: shown.map((e) => toToggle(ctx, e)) }] : []),
-            ...(open.length ? [{ type: 'list' as const, items: open.map((e) => ({ title: e.attributes?.friendly_name ?? e.entity_id, subtitle: 'Offen', status: 'warn' as const })) }] : []),
-          ],
-        };
+        const blocks: any[] = [];
+        if (o.showStats !== false) {
+          blocks.push({
+            type: 'stats',
+            items: [
+              { label: 'Lichter an', value: `${lightsOn.length}/${lights.length}`, tone: lightsOn.length ? 'warn' : 'default' },
+              { label: 'Offen', value: open.length, tone: open.length ? 'warn' : 'ok' },
+              { label: 'Zuhause', value: people.length ? `${home.length}/${people.length}` : '–' },
+            ],
+          });
+        }
+        const picked = parseEntityList(o.entities);
+        if (picked.length) {
+          blocks.push(...entityBlocks(ctx, picked, all).blocks);
+        } else {
+          // Stable order (by name) so a light does not jump or vanish when it is switched.
+          const shown = (o.onlyOn ? lightsOn : lights).sort(byName).slice(0, Number(o.limit ?? 6));
+          if (shown.length) blocks.push({ type: 'toggles', items: shown.map((e) => toToggle(ctx, e)) });
+        }
+        if (o.showOpen !== false && open.length) {
+          blocks.push({ type: 'list', items: open.map((e) => ({ title: e.attributes?.friendly_name ?? e.entity_id, subtitle: 'Offen', status: 'warn' as const })) });
+        }
+        return { summary: `${all.length} Entitäten${unavailable ? ` · ${unavailable} nicht verfügbar` : ''}`, blocks };
       },
       // Everything switchable, grouped by kind, plus sensors and people.
       async detail(ctx) {
@@ -300,6 +310,26 @@ export default defineIntegration({
         return { summary: `${all.length} Entitäten`, blocks };
       },
     },
+  },
+
+  async fieldOptions(ctx, source) {
+    if (source !== 'entities') return [];
+    const all = await states(ctx, true);
+    // most-used kinds first, then alphabetically
+    const ORDER = ['light', 'switch', 'climate', 'cover', 'fan', 'lock', 'media_player', 'vacuum', 'input_boolean', 'sensor', 'binary_sensor', 'person', 'scene', 'script', 'automation'];
+    const rank = (e: any) => {
+      const i = ORDER.indexOf(domainOf(e.entity_id));
+      return i < 0 ? ORDER.length : i;
+    };
+    return all
+      .filter((e) => SEARCHABLE.has(domainOf(e.entity_id)) || SENSOR_DOMAINS.includes(domainOf(e.entity_id)))
+      .sort((a, b) => rank(a) - rank(b) || byName(a, b))
+      .map((e) => ({
+        value: e.entity_id,
+        label: e.attributes?.friendly_name ?? e.entity_id,
+        group: DOMAIN_LABEL[domainOf(e.entity_id)] ?? domainOf(e.entity_id),
+        hint: stateText(e),
+      }));
   },
 
   async search(ctx, q) {

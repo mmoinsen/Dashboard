@@ -4,6 +4,7 @@
   import type { SearchEngine } from '../../lib/types.ts';
   import { warnOnUnload } from '../../lib/unsaved.ts';
   import Glyph from '../Glyph.svelte';
+  import AiSettings from './AiSettings.svelte';
 
   const s = app.settings!;
   let title = $state(s.title);
@@ -83,6 +84,8 @@
 
   <div><button class="btn primary" type="submit">Einstellungen speichern</button></div>
 </form>
+
+<AiSettings />
 
 <style>
   .stack {

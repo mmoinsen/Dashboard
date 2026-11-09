@@ -7,6 +7,7 @@ import { getSetting, setSetting } from '../db.ts';
 import { allIntegrations, describe, getIntegration } from '../integrations/index.ts';
 import type { AppSettings, Dashboard, DashboardPage, WidgetInstance } from '../shared/types.ts';
 import { GRID_COLUMNS, autoPlace } from '../shared/layout.ts';
+import { aiPublic } from './ai.ts';
 
 /** Defaults ⊕ kompass.yaml ⊕ settings saved in the UI. */
 export function effectiveSettings(ctx: AppContext): AppSettings {
@@ -87,6 +88,11 @@ export const dashboardRoutes = (ctx: AppContext) => async (app: FastifyInstance)
     status: ctx.services.statuses(),
     dashboard: loadDashboard(req.user!.id),
     configError: ctx.file.error,
+    // only what the search needs; admins load the full AI settings separately
+    ai: (() => {
+      const a = aiPublic(ctx);
+      return { available: a.enabled && a.hasKey, model: a.model };
+    })(),
   }));
 
   app.get('/dashboard', { preHandler: requireUser }, async (req) => ({ dashboard: loadDashboard(req.user!.id) }));

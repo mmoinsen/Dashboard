@@ -1,8 +1,9 @@
 <script lang="ts">
   import type { FieldDef } from '../lib/types.ts';
+  import MultiSelect from './MultiSelect.svelte';
 
   /** Renders a form control for an integration-defined field. */
-  let { field, value = $bindable(), secretSet = false }: { field: FieldDef; value: any; secretSet?: boolean } = $props();
+  let { field, value = $bindable(), secretSet = false, serviceId }: { field: FieldDef; value: any; secretSet?: boolean; serviceId?: string } = $props();
   const id = `f-${Math.random().toString(36).slice(2, 9)}`;
   const helpId = `${id}-help`;
 
@@ -33,7 +34,9 @@
   }
 </script>
 
-{#if field.type === 'boolean'}
+{#if field.type === 'multiselect'}
+  <MultiSelect {field} bind:value {serviceId} />
+{:else if field.type === 'boolean'}
   <label class="check">
     <input type="checkbox" name={field.key} checked={value ?? field.default ?? false} onchange={(e) => (value = e.currentTarget.checked)} aria-describedby={describedBy} />
     <span>{field.label}</span>

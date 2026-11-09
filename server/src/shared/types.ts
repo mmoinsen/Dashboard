@@ -114,7 +114,7 @@ export interface SearchResult {
   detail?: SearchDetail;
 }
 
-export type FieldType = 'string' | 'url' | 'secret' | 'number' | 'boolean' | 'select' | 'text';
+export type FieldType = 'string' | 'url' | 'secret' | 'number' | 'boolean' | 'select' | 'text' | 'multiselect';
 
 export interface FieldDef {
   key: string;
@@ -128,6 +128,15 @@ export interface FieldDef {
   /** Bounds for number fields (enforced in the form and on the server). */
   min?: number;
   max?: number;
+  /** multiselect: options are loaded from the service (integration.fieldOptions(source)). Value = comma-separated list. */
+  source?: string;
+}
+
+export interface FieldOption {
+  value: string;
+  label: string;
+  group?: string;
+  hint?: string;
 }
 
 export interface WidgetInfo {

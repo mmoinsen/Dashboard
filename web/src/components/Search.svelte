@@ -5,6 +5,7 @@
   import { CATEGORY_BANGS, calculate, looksLikeUrl, parseQuery, webIntent, type SearchResult } from '../lib/types.ts';
   import { copyText } from '../lib/id.ts';
   import ActionButton from './ActionButton.svelte';
+  import AiAnswer from './AiAnswer.svelte';
   import Glyph from './Glyph.svelte';
   import Icon from './Icon.svelte';
   import Toggle from './Toggle.svelte';
@@ -26,6 +27,9 @@
   }
 
   let query = $state(seed);
+  /** Question currently answered by Claude (null = show the result list). */
+  let aiQuestion = $state<string | null>(null);
+  const AI_BANGS = ['ai', 'ki', 'claude'];
   let providers: Record<string, ProviderState> = $state({});
   let suggestions: string[] = $state([]);
   let streaming = $state(false);
@@ -33,15 +37,17 @@
   let navigated = $state(false);
   let expanded: Record<string, boolean> = $state({});
   let input: HTMLInputElement;
-  let listEl: HTMLDivElement;
+  let listEl: HTMLDivElement | undefined = $state();
 
   const parsed = $derived(parseQuery(query));
   const engines = $derived(app.settings?.search.engines ?? []);
   const engine = $derived(engines.find((e) => e.id === (app.user?.settings.searchEngine ?? app.settings?.search.defaultEngine)) ?? engines[0]);
   const webBang = $derived(parsed.bang ? engines.find((e) => e.bang === parsed.bang) : undefined);
+  const aiAvailable = $derived(Boolean(app.ai?.available));
+  const aiBang = $derived(Boolean(parsed.bang && AI_BANGS.includes(parsed.bang)));
   const homelabBang = $derived.by(() => {
     const b = parsed.bang;
-    if (!b || webBang) return null;
+    if (!b || webBang || AI_BANGS.includes(b)) return null;
     const svc = app.services.find((s) => s.id.toLowerCase() === b);
     if (svc) return svc.name;
     const integ = app.integrations.find((i) => i.bang === b && app.services.some((s) => s.type === i.id));
@@ -121,6 +127,7 @@
       ...engines.map((e) => ({ bang: e.bang, label: e.name, icon: e.icon })),
       ...app.integrations.filter((i) => i.bang && app.services.some((s) => s.type === i.id)).map((i) => ({ bang: i.bang!, label: i.name, icon: i.icon })),
       ...Object.entries(CATEGORY_BANGS).map(([bang, c]) => ({ bang, label: `Alle ${c.label}-Dienste` })),
+      ...(aiAvailable ? [{ bang: 'ai', label: 'Claude fragen' }] : []),
     ];
     return list
       .filter((b) => b.bang.startsWith(partial))
@@ -154,6 +161,24 @@
 
     const out: Item[] = [];
     if (!text) return out;
+
+    const askClaude = (score: number): Item => ({
+      id: 'ai:ask',
+      title: `Claude fragen: „${text}“`,
+      subtitle: aiAvailable ? 'Antwort direkt hier – mit deinen Diensten als Kontext' : 'KI-Suche ist nicht eingerichtet (Einstellungen → Allgemein)',
+      glyph: 'zap',
+      group: 'KI',
+      kind: 'command',
+      score,
+      hint: '↵ fragen',
+      exec: () => {
+        if (aiAvailable) aiQuestion = text;
+        else toast('Die KI-Suche ist noch nicht eingerichtet – ein Admin kann sie unter Einstellungen → Allgemein aktivieren.', 'bad');
+      },
+    });
+
+    // AI-only mode ("!ai wie funktioniert ...")
+    if (aiBang) return [askClaude(1)];
 
     // Web-only mode ("!g katzen")
     if (webBang) {
@@ -203,6 +228,8 @@
       out.push({ id: 'web:main', title: `„${text}“ mit ${engine.name} suchen`, subtitle: homelabBang ? undefined : 'Ctrl\u00a0↵ springt immer direkt hierher', glyph: 'globe', group: 'Web', kind: 'web', score: w, exec: () => webSearch(text) });
       if (!homelabBang) suggestions.slice(0, 4).forEach((s, i) => out.push({ id: `web:s:${s}`, title: s, group: 'Web', kind: 'web', score: w - 0.02 - i * 0.005, glyph: 'search', exec: () => webSearch(s) }));
     }
+    // Claude: right below the web search for questions, otherwise further down.
+    if (aiAvailable && !homelabBang && text.length >= 3) out.push(askClaude(webIntent(text) >= 0.6 ? w - 0.01 : 0.3));
     return out;
   });
 
@@ -242,8 +269,10 @@
     controller?.abort();
     const ctrl = new AbortController();
     controller = ctrl;
-    const wantsRemote = !p.command && p.text.length >= 2 && !(p.bang && engines.some((e) => e.bang === p.bang));
-    const wantsSuggest = !p.command && p.text.length >= 2 && (!p.bang || engines.some((e) => e.bang === p.bang));
+    aiQuestion = null;
+    const isAi = !!p.bang && AI_BANGS.includes(p.bang);
+    const wantsRemote = !isAi && !p.command && p.text.length >= 2 && !(p.bang && engines.some((e) => e.bang === p.bang));
+    const wantsSuggest = !isAi && !p.command && p.text.length >= 2 && (!p.bang || engines.some((e) => e.bang === p.bang));
     const timer = setTimeout(async () => {
       if (wantsSuggest) {
         get(`/search/suggest?q=${encodeURIComponent(p.text)}`)
@@ -284,7 +313,7 @@
     if (!it) return;
     if (it.exec) {
       it.exec();
-      if (it.group !== 'Präfixe' && it.id !== 'calc') onclose();
+      if (it.group !== 'Präfixe' && it.id !== 'calc' && it.id !== 'ai:ask') onclose();
       return;
     }
     if (it.toggle?.action) {
@@ -316,6 +345,19 @@
   }
 
   function onkeydown(e: KeyboardEvent) {
+    if (aiQuestion) {
+      // answer view: Enter asks the current text again, Esc goes back to the hits
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        aiQuestion = null;
+        return;
+      }
+      if (e.key === 'Enter' && parsed.text) {
+        e.preventDefault();
+        aiQuestion = parsed.text;
+        return;
+      }
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       move(1);
@@ -337,17 +379,26 @@
     }
   }
 
+  /** Esc must work wherever focus is inside the palette (after clicking a row or a button). */
+  function paletteKeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || e.target === input) return;
+    e.preventDefault();
+    if (aiQuestion) aiQuestion = null;
+    else onclose();
+    input?.focus();
+  }
+
   const loadingProviders = $derived(Object.values(providers).filter((p) => p.loading));
   const failedProviders = $derived(Object.values(providers).filter((p) => p.error));
   const showDetail = $derived(Boolean(selected?.detail));
 </script>
 
 <div class="overlay" role="presentation" onclick={(e) => e.target === e.currentTarget && onclose()}>
-  <div class="palette card" role="dialog" aria-modal="true" aria-label="Suche">
+  <div class="palette card" role="dialog" aria-modal="true" aria-label="Suche" tabindex="-1" onkeydown={paletteKeydown}>
     <div class="bar">
       <Glyph name="search" size={20} />
-      {#if homelabBang || webBang}
-        <span class="scope">{webBang ? webBang.name : homelabBang}</span>
+      {#if homelabBang || webBang || aiBang}
+        <span class="scope">{aiBang ? 'Claude' : webBang ? webBang.name : homelabBang}</span>
       {/if}
       <input
         bind:this={input}
@@ -364,6 +415,18 @@
       <button class="kbd esc" onclick={onclose}>Esc</button>
     </div>
 
+    {#if aiQuestion}
+      <div class="body">
+        <AiAnswer
+          question={aiQuestion}
+          hits={flat.filter((i) => i.kind !== 'web' && i.kind !== 'command' && i.kind !== 'service').map((i) => ({ title: i.title, subtitle: i.subtitle, group: i.group }))}
+          onback={() => {
+            aiQuestion = null;
+            input?.focus();
+          }}
+        />
+      </div>
+    {:else}
     <div class="body" class:with-detail={showDetail}>
       <div class="results" id="search-results" role="listbox" bind:this={listEl}>
         {#if !query.trim()}
@@ -376,6 +439,7 @@
               <span><span class="kbd">!m</span> alle Mediendienste</span>
               <span><span class="kbd">&gt;</span> Befehle</span>
               <span><span class="kbd">Ctrl&nbsp;↵</span> direkt ins Web</span>
+              {#if aiAvailable}<span><span class="kbd">!ai</span> Claude fragen</span>{/if}
             </div>
           </div>
         {/if}
@@ -399,7 +463,11 @@
                     selectedId = it.id;
                   }
                 }}
-                onclick={(e) => !(e.target as HTMLElement).closest('button, input, a') && execute(it)}
+                onclick={(e) => {
+                  if ((e.target as HTMLElement).closest('button, input, a')) return;
+                  execute(it);
+                  input?.focus(); // keep keyboard control (arrows, Enter, Esc) in the search field
+                }}
               >
                 {#if it.image}
                   <img class="thumb" src={it.image} alt="" width="34" height="50" loading="lazy" />
@@ -410,6 +478,7 @@
                 {/if}
                 {#if it.toggle}
                   <div class="toggle-wrap"><Toggle item={it.toggle} compact /></div>
+                  {#if selected?.id === it.id && it.toggle.action && !it.toggle.readonly}<span class="kbd">↵&nbsp;schalten</span>{/if}
                 {:else}
                   <div class="main">
                     <div class="title">{it.title}</div>
@@ -420,7 +489,7 @@
                       {#each it.actions.slice(0, 2) as a}<ActionButton action={a} />{/each}
                     </div>
                   {/if}
-                  {#if it.hint && selected?.id === it.id}<span class="kbd">{it.hint}</span>{:else if selected?.id === it.id && (it.url || it.exec)}<span class="kbd">↵</span>{/if}
+                  {#if it.hint && selected?.id === it.id}<span class="kbd">{it.hint}</span>{:else if selected?.id === it.id && (it.url || it.exec)}<span class="kbd">↵&nbsp;{it.kind === 'web' ? 'suchen' : it.url && !it.exec ? 'öffnen' : 'ausführen'}</span>{/if}
                 {/if}
               </div>
             {/each}
@@ -459,6 +528,7 @@
         </aside>
       {/if}
     </div>
+    {/if}
 
     {#if query.trim() && (loadingProviders.length || failedProviders.length || (engines.length && !parsed.command))}
       <footer>

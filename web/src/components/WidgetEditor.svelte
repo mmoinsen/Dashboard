@@ -122,7 +122,7 @@
           </select>
         </label>
         {#each winfo.options as f (f.key)}
-          <FieldInput field={f} bind:value={options[f.key]} />
+          <FieldInput field={f} bind:value={options[f.key]} serviceId={source.builtin ? undefined : source.service} />
         {/each}
       </div>
     {/if}

@@ -124,6 +124,20 @@ export const serviceRoutes = (ctx: AppContext) => async (app: FastifyInstance) =
     return stringify({ services: out });
   });
 
+  /** Choices for picker fields, e.g. the Home Assistant entity list. */
+  app.get('/services/:id/options/:source', { preHandler: requireUser }, async (req, reply) => {
+    const { id, source } = req.params as { id: string; source: string };
+    const s = services.get(id);
+    const def = s && getIntegration(s.type);
+    if (!s || !def?.fieldOptions) return reply.status(404).send({ error: 'Keine Auswahl verfügbar' });
+    try {
+      return { options: await def.fieldOptions(services.context(s), source) };
+    } catch (err) {
+      widgetLog.warn(`Auswahlliste "${source}" von ${s.name} nicht ladbar: ${describeError(err)}`);
+      return reply.status(502).send({ error: describeError(err) });
+    }
+  });
+
   // ----- widgets -----
 
   app.post('/widget', { preHandler: requireUser }, async (req, reply) => {

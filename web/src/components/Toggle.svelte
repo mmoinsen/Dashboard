@@ -96,9 +96,20 @@
       border-color 0.25s,
       box-shadow 0.25s;
   }
-  .toggle.on {
+  /* compact = embedded in another row (search results): no own box, the row draws the outline */
+  .toggle.compact,
+  .toggle.compact.on {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+  .toggle.on:not(.compact) {
     background: color-mix(in srgb, var(--accent) 11%, var(--surface-2));
     border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+    box-shadow: inset 0 0 24px -12px color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+  .toggle.on:not(.compact) {
     box-shadow: inset 0 0 24px -12px color-mix(in srgb, var(--accent) 60%, transparent);
   }
   .top {

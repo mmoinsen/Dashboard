@@ -66,7 +66,7 @@ export default defineIntegration({
 
 ### Feldtypen
 
-`string`, `url`, `secret` (verschlüsselt gespeichert, nie an den Browser gesendet), `number` (mit optionalem `min`/`max`, wird im Formular und auf dem Server erzwungen), `boolean`, `select` (mit `options`), `text` (mehrzeilig).
+`multiselect` (Auswahlliste aus dem Dienst: Feld mit `source`, die Integration liefert die Einträge über `fieldOptions(ctx, source)` – z. B. Home-Assistant-Entitäten; Wert ist eine kommagetrennte Liste), `string`, `url`, `secret` (verschlüsselt gespeichert, nie an den Browser gesendet), `number` (mit optionalem `min`/`max`, wird im Formular und auf dem Server erzwungen), `boolean`, `select` (mit `options`), `text` (mehrzeilig).
 
 ### Detailansicht
 

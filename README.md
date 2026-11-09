@@ -7,6 +7,7 @@ die fehlende Fortsetzung direkt zu Radarr hinzufügen – oder doch einfach goog
 Home-Assistant-Lampen direkt in der Ergebnisliste.
 
 - **Omni-Suche** (`Ctrl K`, `/` oder einfach lostippen): Dienste, Medien, Smart Home, Container, Torrents, Rechner, URLs und Web in einer Liste
+- **KI-Suche mit Claude** (optional, eigener Anthropic-API-Key): „Claude fragen“ direkt in der Suche oder mit `!ai` – mit deinen Diensten und Suchtreffern als Kontext
 - **30 Integrationen** und ein Plugin-System, das ohne Neubau des Images erweiterbar ist
 - **Frei anordnen**: Widgets per Drag & Drop an jede Stelle eines 12-Spalten-Rasters ziehen und in der Breite ziehen – ohne Lücken zwischen den Reihen
 - **Detailansicht** für jedes Widget (z. B. alle Torrents mit Geschwindigkeitsverlauf, alle Home-Assistant-Geräte nach Bereich)
@@ -49,6 +50,14 @@ services:
       - TZ=Europe/Berlin
 ```
 
+### KI-Suche (optional)
+
+Unter **Allgemein → KI-Suche (Claude)** aktivieren und einen [Anthropic-API-Key](https://console.anthropic.com) eintragen (oder `ANTHROPIC_API_KEY`
+im Container setzen). Standardmodell ist Claude Opus 5.5, wählbar sind auch Sonnet 5.5 und Haiku 5.5; die Antworttiefe ist einstellbar.
+Anfragen gehen **nur** an Anthropic, wenn jemand ausdrücklich „Claude fragen“ wählt. Auf Wunsch sieht Claude dabei die Namen und den
+Online-Status deiner Dienste sowie die Treffer der Dashboard-Suche (keine API-Keys, keine Adressen). Für Opus/Sonnet ist der
+serverseitige Fallback bei Ablehnungen (`fallbacks: "default"`) aktiv.
+
 Alles, was erhalten bleiben soll, liegt in `/config`: Datenbank (`kompass.db`), Schlüssel für Geheimnisse (`secret.key`),
 optional `kompass.yaml`, Plugins (`plugins/`) und der Icon-Cache.
 
@@ -56,6 +65,7 @@ optional `kompass.yaml`, Plugins (`plugins/`) und der Icon-Cache.
 | ------------------------ | -------- | ----------------------------------------------------------------------------- |
 | `PORT`                   | `8080`   | Port im Container                                                             |
 | `KOMPASS_CONFIG_DIR`     | `/config`| Datenverzeichnis                                                              |
+| `ANTHROPIC_API_KEY`      | –        | Alternative zum API-Key in den Einstellungen (KI-Suche)                       |
 | `LOG_LEVEL`              | `info`   | `debug` (jede Anfrage, jedes Widget-Update) · `info` · `warn` · `error`        |
 | `LOG_FORMAT`             | `text`   | `json` für Log-Sammler wie Loki/Graylog                                       |
 | `KOMPASS_TRUSTED_HEADER` | –        | SSO über Reverse Proxy, z. B. `Remote-User` (Authelia/Authentik). Nur setzen, wenn Kompass ausschließlich über diesen Proxy erreichbar ist! |
@@ -90,7 +100,9 @@ API-Keys erscheinen nie im Log. Für mehr Details `LOG_LEVEL=debug` setzen und d
 | `12*7`                   | Rechner                                                          |
 | `192.168.1.1`            | Adresse öffnen                                                   |
 
-`↑ ↓` wählen, `Enter` öffnet/schaltet, `Ctrl Enter` sucht immer direkt im Web, `Shift Enter` öffnet in neuem Tab, `!` zeigt alle Präfixe.
+`!ai …` (oder `!claude`, `!ki`) fragt Claude, sofern die KI-Suche eingerichtet ist.
+
+`↑ ↓` wählen, `Enter` öffnet/schaltet (die ausgewählte Zeile zeigt, was passiert), `Ctrl Enter` sucht immer direkt im Web, `Shift Enter` öffnet in neuem Tab, `!` zeigt alle Präfixe.
 Suchmaschinen und Präfixe sind unter **Allgemein** anpassbar, jeder Benutzer kann seine Standard-Suchmaschine wählen.
 
 ## Integrationen

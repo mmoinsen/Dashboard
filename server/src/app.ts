@@ -15,12 +15,14 @@ import { serviceRoutes } from './routes/services.ts';
 import { searchRoutes } from './routes/search.ts';
 import { dashboardRoutes } from './routes/dashboard.ts';
 import { iconRoutes } from './routes/icons.ts';
+import { aiRoutes } from './routes/ai.ts';
 
 export interface AppContext {
   db: DB;
   auth: Auth;
   file: ConfigFile;
   services: ServiceManager;
+  secrets: SecretBox;
   configDir: string;
   log: (msg: string) => void;
   trustedHeader?: string;
@@ -59,7 +61,7 @@ export async function buildApp(opts: AppOptions): Promise<{ app: FastifyInstance
   const auth = new Auth(db);
   await loadPlugins(join(configDir, 'plugins'));
 
-  const ctx: AppContext = { db, auth, file, services, configDir, log, trustedHeader: opts.trustedHeader?.toLowerCase() };
+  const ctx: AppContext = { db, auth, file, services, secrets, configDir, log, trustedHeader: opts.trustedHeader?.toLowerCase() };
 
   await app.register(cookie);
 
@@ -137,6 +139,7 @@ export async function buildApp(opts: AppOptions): Promise<{ app: FastifyInstance
   await app.register(searchRoutes(ctx), { prefix: '/api' });
   await app.register(dashboardRoutes(ctx), { prefix: '/api' });
   await app.register(iconRoutes(ctx), { prefix: '/api' });
+  await app.register(aiRoutes(ctx), { prefix: '/api' });
 
   app.get('/healthz', async () => ({ ok: true }));
 

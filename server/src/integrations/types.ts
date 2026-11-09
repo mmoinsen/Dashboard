@@ -1,6 +1,6 @@
 import type { HttpClient, HttpClientOptions } from '../lib/http.ts';
 import type { TtlCache } from '../lib/cache.ts';
-import type { FieldDef, SearchResult, WidgetData } from '../shared/types.ts';
+import type { FieldDef, FieldOption, SearchResult, WidgetData } from '../shared/types.ts';
 
 /** A configured service instance, with secrets decrypted. Only lives on the server. */
 export interface ServiceInstance {
@@ -85,6 +85,8 @@ export interface IntegrationDef {
   defaultWidget?: string;
   search?(ctx: Context, query: SearchQuery): Promise<SearchResult[]>;
   actions?: Record<string, (ctx: Context, params: Record<string, any>) => Promise<ActionResult | void>>;
+  /** Choices for `multiselect` fields with a `source` (e.g. Home Assistant entities). */
+  fieldOptions?(ctx: Context, source: string): Promise<FieldOption[]>;
   /** Health check; defaults to a GET on the base URL. Throw or return ok:false when unhealthy. */
   health?(ctx: Context): Promise<{ ok: boolean; message?: string } | void>;
 }
