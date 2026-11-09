@@ -24,6 +24,7 @@ import npm from './npm.ts';
 import pihole from './pihole.ts';
 import plex from './plex.ts';
 import prowlarr from './prowlarr.ts';
+import proxmox from './proxmox.ts';
 import qbittorrent from './qbittorrent.ts';
 import radarr from './radarr.ts';
 import sabnzbd from './sabnzbd.ts';
@@ -59,6 +60,7 @@ const BUILTIN: IntegrationDef[] = [
   npm,
   speedtest,
   // system
+  proxmox,
   docker,
   glances,
   uptimekuma,

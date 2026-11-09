@@ -77,7 +77,16 @@ export type Block =
   | { type: 'text'; text: string; tone?: Tone }
   | { type: 'actions'; items: ActionRef[] }
   | { type: 'heading'; text: string }
-  | { type: 'clock'; seconds?: boolean; timezone?: string; showDate?: boolean }
+  | {
+      type: 'clock';
+      seconds?: boolean;
+      timezone?: string;
+      showDate?: boolean;
+      /** digital (default), minimal, analog, words ("Es ist Viertel nach fünf") */
+      style?: 'digital' | 'minimal' | 'analog' | 'words';
+      align?: 'left' | 'center' | 'right';
+      hour12?: boolean;
+    }
   | { type: 'links'; items: { title: string; url: string; icon?: string; subtitle?: string }[] };
 
 export interface WidgetData {

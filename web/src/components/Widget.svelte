@@ -53,6 +53,8 @@
   const icon = $derived(widget.builtin ? def?.icon : svc?.icon);
   const status = $derived(svc ? app.status[svc.id] : undefined);
   const isClock = $derived(widget.builtin && widget.service === 'clock');
+  /** Clock without card = floats on the page background (default); with card = normal widget box. */
+  const bareClock = $derived(isClock && !widget.options?.card);
 
   async function load() {
     try {
@@ -98,7 +100,7 @@
   const toneClass = $derived(data?.status && data.status !== 'ok' ? data.status : status && !status.ok ? 'bad' : null);
 </script>
 
-<article class="widget card" class:dragging class:editing={app.editing} class:bare={isClock && !app.editing}>
+<article class="widget card" class:dragging class:editing={app.editing} class:bare={bareClock && !app.editing}>
   {#if !isClock || app.editing}
     <header>
       {#if app.editing}
@@ -161,6 +163,7 @@
 
 <style>
   .widget {
+    container: widget / inline-size; /* edit tools adapt to the widget's own width */
     padding: calc(18px * var(--space));
     display: flex;
     flex-direction: column;
@@ -254,10 +257,21 @@
   .edit-tools {
     flex-basis: 100%;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 2px;
+    gap: 6px 2px;
     padding-top: 10px;
     border-top: 1px dashed var(--border);
+    min-width: 0;
+  }
+  /* narrow widgets: width + settings + delete on top, the four arrows on their own row */
+  @container widget (max-width: 330px) {
+    .edit-tools .moves {
+      order: 10;
+      flex-basis: 100%;
+      margin-left: 0;
+      justify-content: space-between;
+    }
   }
   .size select {
     height: 32px;

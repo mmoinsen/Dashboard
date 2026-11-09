@@ -8,7 +8,7 @@ Home-Assistant-Lampen direkt in der Ergebnisliste.
 
 - **Omni-Suche** (`Ctrl K`, `/` oder einfach lostippen): Dienste, Medien, Smart Home, Container, Torrents, Rechner, URLs und Web in einer Liste
 - **„Claude fragen“** in der Suche oder mit `!ai`: öffnet claude.ai mit deinem bestehenden Claude-Abo (Standard, keine Zusatzkosten) – oder antwortet direkt in der Suche, wenn du einen Anthropic-API-Key hinterlegst
-- **30 Integrationen** und ein Plugin-System, das ohne Neubau des Images erweiterbar ist
+- **31 Integrationen** und ein Plugin-System, das ohne Neubau des Images erweiterbar ist
 - **Frei anordnen**: Widgets per Drag & Drop an jede Stelle eines 12-Spalten-Rasters ziehen und in der Breite ziehen – ohne Lücken zwischen den Reihen
 - **Detailansicht** für jedes Widget (z. B. alle Torrents mit Geschwindigkeitsverlauf, alle Home-Assistant-Geräte nach Bereich)
 - **Mehrere Benutzer**, jeder mit eigenem Dashboard und Theme; Admin verwaltet Dienste und Benutzer
@@ -118,9 +118,9 @@ Suchmaschinen und Präfixe sind unter **Allgemein** anpassbar, jeder Benutzer ka
 | Downloads    | qBittorrent, SABnzbd, Prowlarr, FlareSolverr                                               |
 | Smart Home   | Home Assistant (Schalter, Dimmer, Thermostate, Rollläden, Szenen, Sensoren)               |
 | Netzwerk     | Gluetun, Pi-hole (v5/v6), AdGuard Home, nginx (stub_status), Nginx Proxy Manager, Speedtest Tracker |
-| System       | Docker, Glances, Uptime Kuma                                                              |
+| System       | Proxmox VE (Nodes, VMs & LXC mit Start/Stopp), Docker, Glances, Uptime Kuma               |
 | Produktivität| Obsidian LiveSync (CouchDB)                                                               |
-| Allgemein    | Website/Link mit Online-Check, **Eigene JSON-API** (beliebige Werte ohne Code), Uhr, Wetter, Lesezeichen |
+| Allgemein    | Website/Link mit Online-Check, **Eigene JSON-API** (beliebige Werte ohne Code), Uhr (Digital, Minimal, Analog, in Worten), Wetter, Lesezeichen |
 
 Fehlt dein Dienst? Siehe **[docs/integrations.md](docs/integrations.md)** – eine Integration ist eine einzelne Datei, die du als
 Plugin nach `/config/plugins/` legen kannst. Beispiel: [`docs/examples/tautulli.js`](docs/examples/tautulli.js).

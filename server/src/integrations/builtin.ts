@@ -15,11 +15,50 @@ export const clock = defineIntegration({
       name: 'Uhr',
       interval: 86400,
       options: [
+        {
+          key: 'style',
+          label: 'Design',
+          type: 'select',
+          default: 'digital',
+          options: [
+            { value: 'digital', label: 'Digital' },
+            { value: 'minimal', label: 'Minimal (groß & dünn)' },
+            { value: 'analog', label: 'Analog' },
+            { value: 'words', label: 'In Worten („Viertel nach fünf“)' },
+          ],
+        },
+        {
+          key: 'align',
+          label: 'Ausrichtung',
+          type: 'select',
+          default: 'left',
+          options: [
+            { value: 'left', label: 'Links' },
+            { value: 'center', label: 'Mittig' },
+            { value: 'right', label: 'Rechts' },
+          ],
+        },
+        { key: 'card', label: 'Mit Hintergrundkarte', type: 'boolean', default: false },
+        { key: 'showDate', label: 'Datum anzeigen', type: 'boolean', default: true },
         { key: 'seconds', label: 'Sekunden anzeigen', type: 'boolean', default: false },
-        { key: 'timezone', label: 'Zeitzone (optional)', type: 'string', placeholder: 'Europe/Berlin' },
+        { key: 'hour12', label: '12-Stunden-Format (AM/PM)', type: 'boolean', default: false },
+        { key: 'timezone', label: 'Zeitzone (optional)', type: 'string', placeholder: 'z. B. Europe/Berlin oder America/New_York' },
       ],
       async fetch(_ctx, o) {
-        return { blocks: [{ type: 'clock', seconds: Boolean(o.seconds), timezone: o.timezone || undefined, showDate: true }] };
+        const pick = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T => (allowed.includes(v as T) ? (v as T) : fallback);
+        return {
+          blocks: [
+            {
+              type: 'clock',
+              style: pick(o.style, ['digital', 'minimal', 'analog', 'words'] as const, 'digital'),
+              align: pick(o.align, ['left', 'center', 'right'] as const, 'left'),
+              seconds: Boolean(o.seconds),
+              hour12: Boolean(o.hour12),
+              showDate: o.showDate !== false,
+              timezone: o.timezone || undefined,
+            },
+          ],
+        };
       },
     },
   },

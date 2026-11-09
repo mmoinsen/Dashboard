@@ -129,7 +129,7 @@
       {#each b.items as a}<ActionButton action={a} ondone={refresh} small={!detail} />{/each}
     </div>
   {:else if b.type === 'clock'}
-    <Clock seconds={b.seconds} timezone={b.timezone} showDate={b.showDate} />
+    <Clock seconds={b.seconds} timezone={b.timezone} showDate={b.showDate} style={b.style} align={b.align} hour12={b.hour12} />
   {:else if b.type === 'links'}
     <div class="links">
       {#each b.items as l}
